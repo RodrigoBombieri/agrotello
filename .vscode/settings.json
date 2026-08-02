@@ -1,0 +1,35 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"],
+  "python.analysis.extraPaths": ["${workspaceFolder}/src"],
+  "python.analysis.typeCheckingMode": "basic",
+
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+
+  "ruff.lint.args": ["--config=pyproject.toml"],
+  "black-formatter.args": ["--config", "pyproject.toml"],
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".pytest_cache": true,
+    ".ruff_cache": true
+  },
+
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/datasets/**": true,
+    "**/models/**": true
+  },
+
+  "editor.rulers": [100]
+}

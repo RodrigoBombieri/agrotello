@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run: mission",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_mission.py",
+      "console": "integratedTerminal",
+      "env": { "PYTHONPATH": "${workspaceFolder}/src" }
+    },
+    {
+      "name": "Run: train detector",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/train_detector.py",
+      "console": "integratedTerminal",
+      "env": { "PYTHONPATH": "${workspaceFolder}/src" }
+    },
+    {
+      "name": "Pytest: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-v"],
+      "console": "integratedTerminal",
+      "env": { "PYTHONPATH": "${workspaceFolder}/src" }
+    }
+  ]
+}
