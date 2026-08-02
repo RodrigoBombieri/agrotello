@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+models/*
+!models/.gitkeep
+datasets/*
+!datasets/.gitkeep
+*.mp4
+*.pdf
+.pytest_cache/
+.ruff_cache/

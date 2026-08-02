@@ -1,0 +1,14 @@
+[project]
+name = "dronesw"
+version = "0.1.0"
+description = "Inspección agro autónoma con DJI Tello: vuelo, visión y reportes."
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
