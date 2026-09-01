@@ -1,5 +1,8 @@
 """Interfaz abstracta que deben implementar los backends de vuelo.
 
+flight/base.py: No se ejecuta directamente, pero es el molde que define las reglas
+para los controladores que se van a instanciar en este momento.
+
 Dos implementaciones conviven en este proyecto con propósitos distintos:
 
 - `Px4FlightController` (MAVSDK): ejecuta misiones de waypoints GPS contra PX4 SITL

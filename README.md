@@ -7,7 +7,9 @@ plagas en cultivos. Esquema híbrido:
 - **Visión por computadora** → DJI Tello EDU real, como sandbox de captura de imágenes.
 
 Ver `PLANNING.md` para arquitectura completa, justificación del esquema híbrido, estructura
-del repo y roadmap por sprints.
+del repo y roadmap por sprints. Ver `docs/herramientas.md` para el stack técnico y cómo
+fluyen los datos entre cada herramienta, y `docs/comandos.md` para los comandos de uso
+frecuente según el entorno.
 
 ## Setup rápido
 

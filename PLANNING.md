@@ -11,6 +11,7 @@ de dron:
 - **Misión y mapeo → PX4/ArduPilot + MAVSDK-Python, contra un simulador SITL.** Acá se construye
   la arquitectura real: waypoints GPS, telemetría de posición real, geofence. No requiere comprar
   hardware — corre en la PC. Es el código que eventualmente va a volar en un dron físico real.
+
 - **Visión por computadora → DJI Tello EDU (hardware real).** El Tello se usa como una "cámara
   voladora" barata para capturar imágenes/video reales de cultivo y entrenar/validar el pipeline
   de detección (índices de vegetación + modelo de plagas). No importa que no tenga GPS ni
@@ -88,29 +89,29 @@ agrotello/
 ├── src/
 │   └── dronesw/
 │       ├── __init__.py
-│       ├── config.py
+│       ├── config.py                 (1)
 │       ├── flight/
-│       │   ├── base.py              # interfaz abstracta FlightController
-│       │   ├── px4_controller.py    # MAVSDK — waypoints GPS, contra SITL o dron real
-│       │   ├── tello_controller.py  # djitellopy — captura de video real
-│       │   └── safety.py            # failsafes: batería, geofence, timeout
+│       │   ├── base.py              # interfaz abstracta FlightController (4)
+│       │   ├── px4_controller.py    # MAVSDK — waypoints GPS, contra SITL o dron real(5)
+│       │   ├── tello_controller.py  # djitellopy — captura de video real(5)
+│       │   └── safety.py            # failsafes: batería, geofence, timeout (7)
 │       ├── mission/
-│       │   ├── planner.py           # genera waypoints GPS (grilla sobre polígono del lote)
-│       │   └── executor.py          # ejecuta el plan vía MAVSDK, loguea progreso
+│       │   ├── planner.py           # genera waypoints GPS (grilla sobre polígono del lote) (3)
+│       │   └── executor.py          # ejecuta el plan vía MAVSDK, loguea progreso (6)
 │       ├── vision/
-│       │   ├── capture.py           # lectura del stream de video (Tello)
-│       │   ├── indices.py           # ExG / VARI sobre frames
-│       │   ├── detector.py          # wrapper YOLOv8 (plagas/enfermedades)
-│       │   └── stitching.py         # mosaico del lote (OpenCV Stitcher)
+│       │   ├── capture.py           # lectura del stream de video (Tello)(9)
+│       │   ├── indices.py           # ExG / VARI sobre frames(10)
+│       │   ├── detector.py          # wrapper YOLOv8 (plagas/enfermedades)(10)
+│       │   └── stitching.py         # mosaico del lote (OpenCV Stitcher)(12)
 │       ├── mapping/
-│       │   └── geolocate.py         # posición real vía MAVSDK telemetry -> mapa georreferenciado
+│       │   └── geolocate.py         # posición real vía MAVSDK telemetry -> mapa georreferenciado(11)
 │       ├── reporting/
-│       │   ├── pdf_report.py
-│       │   └── templates/
+│       │   ├── pdf_report.py         (13)
+│       │   └── templates/            (13)
 │       └── api/
-│           ├── main.py              # FastAPI app
-│           ├── routes/
-│           └── websocket.py         # telemetría/video en vivo
+│           ├── main.py              # FastAPI app (2)
+│           ├── routes/               (2)
+│           └── websocket.py         # telemetría/video en vivo (8)
 ├── models/          # pesos entrenados (gitignored)
 ├── datasets/         # frames del Tello + PlantVillage (gitignored)
 ├── notebooks/
