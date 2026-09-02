@@ -151,6 +151,17 @@ await drone.action.land()        # aterriza
 
 ### Git
 
+> **Los commits y pushes se hacen desde Windows, no desde WSL.** El repo está físicamente en
+> Windows (`~/agrotello` es solo un atajo), y las credenciales de GitHub ya funcionan del lado
+> de Windows. Abrí PowerShell y parate en la carpeta:
+>
+> ```powershell
+> cd "C:\Users\Rodrigo\Escritorio\Repositorio Git\agrotello"
+> ```
+>
+> GitHub no acepta contraseña para operaciones de git desde 2021: usa token o credential
+> manager. Por eso conviene pushear desde donde la autenticación ya está resuelta.
+
 | Comando | Qué hace |
 |---|---|
 | `git status` | Muestra qué archivos se modificaron y cuáles faltan commitear |
