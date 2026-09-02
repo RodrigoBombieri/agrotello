@@ -17,18 +17,41 @@ PX4 corre ahí. Las piezas quedan así:
 El venv está fuera del repo porque instalarlo sobre `/mnt/c` sería muy lento (miles de
 archivos chicos cruzando entre los dos sistemas de archivos).
 
-## La regla de las dos terminales
+## Convención de terminales
 
-Cada terminal tiene un propósito y **no comparten entorno**. Mezclarlas rompe cosas.
+Hay cinco contextos distintos donde se escriben comandos. Cada bloque de comandos de este
+documento (y de las instrucciones que te pasen) lleva una etiqueta que indica cuál usar.
 
-| Terminal | venv | Carpeta | Para qué |
+| Etiqueta | Qué es | Dónde estás parado | Cómo se abre |
 |---|---|---|---|
-| **1 — PX4** | ❌ sin venv | `~/PX4-Autopilot` | Compilar y correr el simulador. Usa el Python del sistema, con las dependencias que instaló `ubuntu.sh` |
-| **2 — proyecto** | ✅ con venv | `~/agrotello` | Correr tu código con `mavsdk`. Usa el venv aislado |
+| **[PowerShell]** | Terminal de Windows | `C:\Users\Rodrigo\Escritorio\Repositorio Git\agrotello` | Menú inicio → PowerShell |
+| **[Ubuntu · PX4]** | Terminal de Linux, **sin** venv | `~/PX4-Autopilot` | `wsl -d Ubuntu-22.04` |
+| **[Ubuntu · proyecto]** | Terminal de Linux, **con** venv | `~/agrotello` | `wsl -d Ubuntu-22.04` + activar venv |
+| **[pxh>]** | Consola del autopiloto PX4 | — | Aparece sola al levantar el simulador, dentro de [Ubuntu · PX4] |
+| **[apython]** | Consola interactiva de Python | — | Se abre con `apython`, dentro de [Ubuntu · proyecto] |
+
+Las dos últimas no son terminales nuevas: son consolas que se abren **adentro** de una
+terminal existente. Si el prompt dice `pxh>` estás en la de PX4; si dice `>>>` estás en la de
+Python.
+
+```
+[PowerShell]  ← ventana aparte, solo para git
+
+[Ubuntu · PX4] ──► al correr el simulador se convierte en ──► [pxh>]
+
+[Ubuntu · proyecto] ──► al correr apython se convierte en ──► [apython]
+```
+
+### Para qué sirve cada una
+
+- **[PowerShell]** — commits y pushes. Nada más.
+- **[Ubuntu · PX4]** — compilar y correr el simulador. Usa el Python del sistema con las
+  dependencias que instaló `ubuntu.sh`. **Nunca actives el venv acá.**
+- **[Ubuntu · proyecto]** — correr tu código con `mavsdk`. Usa el venv aislado.
 
 > Si el build de PX4 falla con `ModuleNotFoundError: No module named 'menuconfig'` o
-> `kconfiglib is not installed`, es porque tenías el venv activado. Corré `deactivate` y
-> reintentá. **No** instales las dependencias de PX4 dentro del venv.
+> `kconfiglib is not installed`, es porque tenías el venv activado en [Ubuntu · PX4]. Corré
+> `deactivate` y reintentá.
 
 ---
 
@@ -112,6 +135,9 @@ shell**: son del autopiloto y solo funcionan ahí adentro.
 | `param set NAV_DLL_ACT 0` | Desactiva el failsafe por pérdida de enlace con la estación de control. Necesario en SITL, donde no hay GCS conectada |
 | `param set CBRK_SUPPLY_CHK 894281` | Desactiva el chequeo del módulo de alimentación, que no existe en simulación. El número es un valor mágico que PX4 exige para confirmar que es intencional |
 | `param save` | Guarda los parámetros para que persistan entre reinicios del simulador |
+| `param set SIM_BAT_MIN_PCT 10` | Baja el piso de descarga de la batería simulada. Por default PX4 no la deja bajar del 50%, lo que impide probar failsafes de batería baja |
+| `param set SIM_BAT_DRAIN 60` | Segundos que tarda la batería simulada en llegar al piso. Valores chicos = descarga más rápida |
+| `param show <NOMBRE>` | Muestra el valor actual de un parámetro |
 
 > Los dos `param set` son **solo para simulación**. En un dron real esos chequeos existen por
 > buenas razones y no se tocan.
@@ -148,6 +174,17 @@ await drone.action.land()        # aterriza
 ```
 
 > Si tardás mucho entre `arm()` y `takeoff()`, PX4 desarma solo por seguridad.
+
+> **Pegar bloques multilínea en la consola rompe la indentación.** El REPL indenta solo y las
+> indentaciones se suman. Para consultas rápidas usá líneas sueltas
+> (`pos = await drone.telemetry.position().__anext__()`); para cualquier cosa más larga,
+> escribí un script y ejecutalo.
+
+### Ejecutar scripts del proyecto
+
+| Comando | Qué hace |
+|---|---|
+| `python scripts/sprint0_hover.py` | Entregable del Sprint 0: conecta, chequea batería y posición, despega, hace hover y aterriza |
 
 ### Git
 
