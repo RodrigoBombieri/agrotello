@@ -24,7 +24,7 @@ documento (y de las instrucciones que te pasen) lleva una etiqueta que indica cu
 
 | Etiqueta | Qué es | Dónde estás parado | Cómo se abre |
 |---|---|---|---|
-| **[PowerShell]** | Terminal de Windows | `C:\Users\Rodrigo\Escritorio\Repositorio Git\agrotello` | Menú inicio → PowerShell |
+| **[Git Bash]** | Terminal de Windows (Git Bash) | `~/Escritorio/Repositorio Git/agrotello` | Clic derecho sobre la carpeta → "Git Bash Here" |
 | **[Ubuntu · PX4]** | Terminal de Linux, **sin** venv | `~/PX4-Autopilot` | `wsl -d Ubuntu-22.04` |
 | **[Ubuntu · proyecto]** | Terminal de Linux, **con** venv | `~/agrotello` | `wsl -d Ubuntu-22.04` + activar venv |
 | **[pxh>]** | Consola del autopiloto PX4 | — | Aparece sola al levantar el simulador, dentro de [Ubuntu · PX4] |
@@ -35,7 +35,7 @@ terminal existente. Si el prompt dice `pxh>` estás en la de PX4; si dice `>>>` 
 Python.
 
 ```
-[PowerShell]  ← ventana aparte, solo para git
+[Git Bash]  ← ventana aparte, solo para git
 
 [Ubuntu · PX4] ──► al correr el simulador se convierte en ──► [pxh>]
 
@@ -44,7 +44,9 @@ Python.
 
 ### Para qué sirve cada una
 
-- **[PowerShell]** — commits y pushes. Nada más.
+- **[Git Bash]** — commits y pushes. Nada más.
+- **[PowerShell]** — solo para los comandos de gestión de WSL (`wsl --install`, `wsl --shutdown`).
+  Algunos requieren abrirla como administrador.
 - **[Ubuntu · PX4]** — compilar y correr el simulador. Usa el Python del sistema con las
   dependencias que instaló `ubuntu.sh`. **Nunca actives el venv acá.**
 - **[Ubuntu · proyecto]** — correr tu código con `mavsdk`. Usa el venv aislado.
@@ -188,13 +190,16 @@ await drone.action.land()        # aterriza
 
 ### Git
 
-> **Los commits y pushes se hacen desde Windows, no desde WSL.** El repo está físicamente en
-> Windows (`~/agrotello` es solo un atajo), y las credenciales de GitHub ya funcionan del lado
-> de Windows. Abrí PowerShell y parate en la carpeta:
+> **Los commits y pushes se hacen desde Git Bash en Windows, no desde WSL.** El repo está
+> físicamente en Windows (`~/agrotello` es solo un atajo), y las credenciales de GitHub ya
+> funcionan de ese lado. Abrí Git Bash y parate en la carpeta:
 >
-> ```powershell
-> cd "C:\Users\Rodrigo\Escritorio\Repositorio Git\agrotello"
+> ```bash
+> cd ~/Escritorio/Repositorio\ Git/agrotello
 > ```
+>
+> Los hooks de `pre-commit` corren del lado desde el que commiteás, así que `pre-commit`
+> tiene que estar instalado en el Python de Windows, no en el venv de Linux.
 >
 > GitHub no acepta contraseña para operaciones de git desde 2021: usa token o credential
 > manager. Por eso conviene pushear desde donde la autenticación ya está resuelta.

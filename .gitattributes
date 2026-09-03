@@ -1,0 +1,12 @@
+# El código se ejecuta en Linux (WSL) aunque se edite desde Windows.
+# Forzamos LF en todo el repo para evitar que git marque archivos enteros como
+# modificados solo por el cambio de fin de línea.
+* text=auto eol=lf
+
+# Binarios: que git no intente normalizarlos nunca.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.pt binary
+*.ulg binary

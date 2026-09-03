@@ -142,12 +142,20 @@ agrotello/
 
 ## 5. Roadmap por sprints (2 semanas c/u, salvo Sprint 0)
 
-**Sprint 0 — Setup (1 semana), dos frentes en paralelo**
+**Sprint 0 — Setup (1 semana), dos frentes en paralelo** — ✅ *frente SITL completado; frente Tello pendiente de hardware*
 *Frente SITL*: levantar PX4 SITL local (Docker, ver `docs/sitl_setup.md`), instalar
 `mavsdk` + `aioconsole`, confirmar `arm()` / `takeoff()` / `land()` contra el simulador.
 *Frente Tello*: conectar al Tello EDU real, comandos básicos (`takeoff`, `land`, batería).
 Failsafe mínimo de batería en ambos backends.
 *Entregable*: script que despega y aterriza tanto en SITL como en el Tello real.
+
+> **Resultado (SITL)**: `scripts/sprint0_hover.py` — conecta, espera estimación de posición,
+> chequea batería, despega a altura configurable, hace hover logueando telemetría y aterriza.
+> El failsafe de batería fue verificado en vuelo, no solo escrito: con `SIM_BAT_MIN_PCT 10` el
+> hover se corta y aterriza al cruzar el umbral. Nota: el chequeo corre una vez por segundo, y
+> como el SITL descarga ~3%/s el disparo ocurre hasta un 3% por debajo del umbral nominal —
+> irrelevante con tasas de descarga reales, pero a tener en cuenta si se ajusta la frecuencia
+> de muestreo.
 
 **Sprint 1 — Misión GPS + captura real**
 `FlightController` abstracto + `Px4FlightController` (MAVSDK) + `TelloFlightController`.
