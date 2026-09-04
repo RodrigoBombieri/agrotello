@@ -1,0 +1,21 @@
+poligono:
+  - lat: -32.69586457654833
+    lon: -58.893566719996926
+  - lat: -32.69448276232639
+    lon: -58.89525380397006
+  - lat: -32.69602401527439
+    lon: -58.897067193695214
+  - lat: -32.6973678446678
+    lon: -58.895479349956126
+
+vuelo:
+  altura_m: 80
+  separacion_m: 30
+  velocidad_ms: 8
+  angulo_grados: 0
+  margen_m: 2
+
+nombre:
+  - lote_prueba: "La Florida"
+
+descripcion: "Lote de prueba para la misión de vuelo autónomo."
