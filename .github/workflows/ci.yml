@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint y formato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Versiones fijas: si el CI y tu máquina usan versiones distintas de black,
+      # el formato "correcto" cambia según quién lo corra.
+      - name: Instalar herramientas
+        run: pip install ruff==0.4.10 black==24.4.2
+
+      - name: ruff (linter)
+        run: ruff check src scripts tests
+
+      - name: black (formato)
+        run: black --check --diff src scripts tests
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Instalar dependencias de test
+        run: pip install pytest pytest-asyncio pytest-mock
+
+      # pytest devuelve 5 cuando no encuentra ningún test. Mientras el proyecto no
+      # tenga tests eso no debe marcar el build como fallido.
+      - name: pytest
+        run: |
+          set +e
+          pytest
+          code=$?
+          if [ $code -eq 5 ]; then
+            echo "Todavía no hay tests en el proyecto: se omite este paso."
+            exit 0
+          fi
+          exit $code

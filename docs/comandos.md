@@ -157,7 +157,6 @@ shell**: son del autopiloto y solo funcionan ahí adentro.
 | `pip install mavsdk aioconsole` | Instala el SDK de vuelo y la consola interactiva async |
 | `pip install -r requirements.txt` | Instala todas las dependencias del proyecto (pesado: incluye torch y opencv) |
 | `pip show mavsdk` | Muestra la versión y ubicación de un paquete instalado |
-| `pre-commit install` | Activa los hooks que corren ruff y black antes de cada commit |
 
 ### Sesión interactiva con el dron
 
@@ -221,3 +220,7 @@ await drone.action.land()        # aterriza
 | `ruff check src tests` | Corre el linter sobre el código |
 | `black src tests` | Formatea el código automáticamente |
 | `pytest` | Corre la suite de tests |
+
+> **No hay hooks de pre-commit.** El lint y el formato los corre GitHub Actions en cada push
+> (ver `.github/workflows/ci.yml`). Si querés chequear antes de subir, corré `ruff check` y
+> `black --check` a mano con los mismos argumentos que usa el CI.
