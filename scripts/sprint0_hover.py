@@ -1,14 +1,18 @@
-"""Entregable del Sprint 0 — vuelo básico verificado contra PX4 SITL.
+"""Vuelo de prueba mínimo: despega, se queda quieto un rato y aterriza.
 
-Secuencia: conectar -> chequeos previos -> armar -> despegar -> hover -> aterrizar.
-Incluye logging de telemetría y un failsafe de batería que aborta o aterriza anticipadamente.
+Es el entregable del Sprint 0, el que confirmó que se puede controlar un dron desde Python.
+Sirve como chequeo rápido de que el simulador y la conexión están sanos.
 
-Requisitos:
-    - PX4 SITL corriendo ([Ubuntu · PX4]):  HEADLESS=1 make px4_sitl gz_x500
-    - venv activo ([Ubuntu · proyecto]):    source ~/venvs/agrotello/bin/activate
+- `esperar_conexion`: espera a que MAVSDK detecte el dron.
+- `esperar_posicion_valida`: espera a que el GPS y el punto de retorno estén fijados.
+- `leer_bateria_pct` y `leer_altura_m`: lecturas puntuales de telemetría.
+- `chequeos_previos`: verifica que sea seguro volar.
+- `despegar`, `hover` y `aterrizar`: las tres fases del vuelo.
+- `main`: encadena todo.
 
-Uso:
-    python scripts/sprint0_hover.py
+Técnico: usa MAVSDK directo, sin pasar por las abstracciones del proyecto, porque es
+anterior a ellas y conviene mantenerlo así: es la prueba de humo más simple posible contra
+el simulador. Altura, duración y umbral de batería se configuran por variables de entorno.
 """
 
 import asyncio
