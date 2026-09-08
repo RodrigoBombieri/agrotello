@@ -40,6 +40,8 @@ jobs:
       - name: Instalar dependencias de test
         run: pip install pytest pytest-asyncio pytest-mock
 
+      - name: Instalar el paquete
+        run: pip install -e .
       # pytest devuelve 5 cuando no encuentra ningún test. Mientras el proyecto no
       # tenga tests eso no debe marcar el build como fallido.
       - name: pytest

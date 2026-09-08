@@ -15,7 +15,6 @@ vuelo:
   angulo_grados: 0
   margen_m: 2
 
-nombre:
-  - lote_prueba: "La Florida"
+nombre: "La Florida"
 
 descripcion: "Lote de prueba para la misión de vuelo autónomo."

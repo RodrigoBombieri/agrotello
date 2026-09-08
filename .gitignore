@@ -11,3 +11,4 @@ datasets/*
 *.pdf
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
