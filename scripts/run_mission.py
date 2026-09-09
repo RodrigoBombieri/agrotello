@@ -43,6 +43,7 @@ log = logging.getLogger("run_mission")
 RADIO_TIERRA_M = 6_371_000
 DIR_MAPAS = Path("mapas")
 
+
 def _parsear_argumentos() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Planifica y vuela una misión de barrido sobre un lote.",
@@ -110,6 +111,7 @@ def _resumen_plan(mision: DefinicionMision, waypoints: Sequence[Waypoint]) -> st
         f"\n              (sin contar ascenso, giros ni retorno)\n"
     )
 
+
 def _ruta_geojson(nombre_lote: str, valor: str) -> Path:
     """Resuelve dónde guardar el mapa.
 
@@ -121,6 +123,7 @@ def _ruta_geojson(nombre_lote: str, valor: str) -> Path:
 
     slug = re.sub(r"[^a-z0-9]+", "_", nombre_lote.lower()).strip("_") or "mision"
     return DIR_MAPAS / f"{slug}_{datetime.now():%Y%m%d_%H%M}.geojson"
+
 
 def _exportar_geojson(waypoints: Sequence[Waypoint], ruta: Path) -> None:
     """Guarda el recorrido como GeoJSON, para pegarlo en geojson.io y verlo sobre el mapa.
