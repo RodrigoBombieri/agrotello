@@ -7,6 +7,11 @@ name = "dronesw"
 version = "0.1.0"
 description = "Inspección agro autónoma con PX4: misión, visión y reportes."
 requires-python = ">=3.10"
+dependencies = [
+    "mavsdk>=2.6.0",
+    "shapely>=2.0.0",
+    "pyyaml>=6.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

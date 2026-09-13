@@ -151,10 +151,16 @@ con failsafe de batería verificado en vuelo.
 - 1.5 ✅ `mission/executor.py` — orquestación con vigilancia de batería
 - 1.6 ✅ `scripts/run_mission.py` — planifica y vuela con un comando; `--solo-plan` y
   exportación a GeoJSON en `mapas/`
-- 1.7 ⬜ Tests del planner — `tests/` todavía está vacío
-- 1.8 ⬜ **Volar la misión en el SITL** — el entregable del sprint es el barrido ejecutado,
-  no el código escrito
+- 1.7 ✅ Tests del planner — `tests/unit/test_planner.py`, cubre proyección, carga, cobertura,
+  orientación, margen y errores
+- 1.8 ✅ **Misión volada en el SITL** (2026-09-13): 22/22 waypoints sobre La Florida, retorno
+  automático y desarmado. ~8 min de vuelo
 - 1.9 ⬜ `docs/mission_format.md` — sigue con el texto "pendiente" del scaffold
+
+Notas del vuelo: `SIM_BAT_DRAIN 1500` descarga mucho más lento de lo esperado (terminó en 97%),
+así que ese vuelo no ejercitó el failsafe de batería — ya verificado en el Sprint 0. Las
+dependencias de runtime se declaran en `pyproject.toml` (`[project] dependencies`), no en
+`requirements.txt`: el CI instala con `pip install -e .` y solo lee de ahí.
 
 **Frente de visión: sin hardware, y ya no hace falta.** Se descartó el Tello (ver Decisiones).
 Los Sprints 2 y 3 se hacen con satélite, simulador y datasets públicos. Un dron PX4 real es un
