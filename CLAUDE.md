@@ -155,7 +155,10 @@ con failsafe de batería verificado en vuelo.
   orientación, margen y errores
 - 1.8 ✅ **Misión volada en el SITL** (2026-09-13): 22/22 waypoints sobre La Florida, retorno
   automático y desarmado. ~8 min de vuelo
-- 1.9 ⬜ `docs/mission_format.md` — sigue con el texto "pendiente" del scaffold
+- 1.9 ✅ `docs/mission_format.md` — campos, cómo elegir los valores y limitaciones actuales
+
+**Sprint 1 cerrado.** Próximo: reescribir `PLANNING.md` (sigue con el Tello como pieza
+central) y arrancar el Sprint 2.
 
 Notas del vuelo: `SIM_BAT_DRAIN 1500` descarga mucho más lento de lo esperado (terminó en 97%),
 así que ese vuelo no ejercitó el failsafe de batería — ya verificado en el Sprint 0. Las
