@@ -81,6 +81,12 @@ Ejemplo de referencia: `src/dronesw/mission/planner.py`.
   líneas sueltas; para algo más largo, un script.
 - VS Code tiene que abrirse en modo Remote-WSL (`WSL: Reopen Folder in WSL`), si no Pylance
   no encuentra el venv de Linux.
+- **Las extensiones de VS Code se instalan aparte en WSL.** Tenerlas en Windows no sirve en
+  modo Remote-WSL: hay que apretar "Install in WSL: Ubuntu-22.04" en cada una.
+- **Al pegar código en el chat se pierden líneas en blanco** entre funciones, y black las
+  exige (dos antes de cada `def` de nivel superior). Ya rompió el CI dos veces. Recordarle
+  correr `black src scripts tests` después de pegar, hasta que el formateo al guardar
+  funcione.
 
 ## Cómo correr el proyecto
 
