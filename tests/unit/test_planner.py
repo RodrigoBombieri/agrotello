@@ -21,6 +21,7 @@ tramo entre waypoints, no los waypoints sueltos.
 """
 
 import math
+from itertools import pairwise
 
 import pytest
 from shapely.geometry import Point, Polygon
@@ -169,7 +170,7 @@ class TestCobertura:
         sentidos = [
             waypoints[i + 1].lat > waypoints[i].lat for i in range(0, len(waypoints) - 1, 2)
         ]
-        assert all(a != b for a, b in zip(sentidos, sentidos[1:]))
+        assert all(a != b for a, b in pairwise(sentidos))
 
     def test_una_separacion_enorme_deja_al_menos_una_pasada(self):
         assert len(planificar(_mision(separacion_m=5_000.0))) >= 2

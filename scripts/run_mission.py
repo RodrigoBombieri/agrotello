@@ -29,9 +29,9 @@ import logging
 import math
 import re
 import sys
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Sequence
 
 from dronesw.flight.base import Waypoint
 from dronesw.flight.px4_controller import Px4FlightController
@@ -122,7 +122,7 @@ def _ruta_geojson(nombre_lote: str, valor: str) -> Path:
         return Path(valor)
 
     slug = re.sub(r"[^a-z0-9]+", "_", nombre_lote.lower()).strip("_") or "mision"
-    return DIR_MAPAS / f"{slug}_{datetime.now():%Y%m%d_%H%M}.geojson"
+    return DIR_MAPAS / f"{slug}_{datetime.now().astimezone():%Y%m%d_%H%M}.geojson"
 
 
 def _exportar_geojson(waypoints: Sequence[Waypoint], ruta: Path) -> None:

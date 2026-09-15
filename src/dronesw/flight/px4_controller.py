@@ -27,14 +27,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import AsyncIterator, Sequence, TypeVar
+from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from typing import TypeVar
 
 from mavsdk import System
 from mavsdk.mission import MissionItem, MissionPlan
 
 from dronesw.flight.base import FlightController, Posicion, Waypoint
-
-from collections.abc import AsyncGenerator
 
 log = logging.getLogger(__name__)
 
@@ -213,5 +212,6 @@ class Px4FlightController(FlightController):
         except asyncio.TimeoutError:
             actual = await self.altura_m()
             raise TimeoutError(
-                f"No alcanzó {objetivo_m:.1f} m en {timeout_s:.0f} s (altura actual: {actual:.1f} m)"
+                f"No alcanzó {objetivo_m:.1f} m en {timeout_s:.0f} s "
+                f"(altura actual: {actual:.1f} m)"
             ) from None

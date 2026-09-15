@@ -19,7 +19,7 @@ jobs:
       # Versiones fijas: si el CI y tu máquina usan versiones distintas de black,
       # el formato "correcto" cambia según quién lo corra.
       - name: Instalar herramientas
-        run: pip install ruff==0.4.10 black==24.4.2
+        run: pip install ruff==0.16.7 black==26.5.1
 
       - name: ruff (linter)
         run: ruff check src scripts tests
