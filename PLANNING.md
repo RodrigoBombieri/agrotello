@@ -1,245 +1,242 @@
-# AgroTello — Inspección Agro Autónoma (esquema híbrido: PX4/MAVSDK + DJI Tello)
+# AgroTello — Inspección agronómica autónoma con PX4
 
-Planificación técnica del proyecto: pipeline de misión, visión por computadora y reportes para
-detección de estrés hídrico y plagas en cultivos.
+Planificación técnica: planificar y volar misiones sobre un lote, detectar problemas en el
+cultivo y entregar un reporte accionable.
 
 ## 1. Visión del producto
 
-El proyecto se desarrolla en **dos frentes que conviven en paralelo**, no en una sola plataforma
-de dron:
+El sistema recibe el contorno de un lote, calcula el recorrido que lo cubre, hace volar un
+dron de forma autónoma, analiza lo que se ve desde arriba y entrega un mapa de dónde está el
+problema.
 
-- **Misión y mapeo → PX4/ArduPilot + MAVSDK-Python, contra un simulador SITL.** Acá se construye
-  la arquitectura real: waypoints GPS, telemetría de posición real, geofence. No requiere comprar
-  hardware — corre en la PC. Es el código que eventualmente va a volar en un dron físico real.
+Hay dos cosas distintas que detectar, y necesitan datos distintos:
 
-- **Visión por computadora → DJI Tello EDU (hardware real).** El Tello se usa como una "cámara
-  voladora" barata para capturar imágenes/video reales de cultivo y entrenar/validar el pipeline
-  de detección (índices de vegetación + modelo de plagas). No importa que no tenga GPS ni
-  telemetría de largo alcance para esto — solo necesitamos que vuele y filme.
+| Qué se busca | Con qué se detecta | De dónde salen los datos |
+|---|---|---|
+| Zonas de bajo vigor y estrés hídrico | NDVI (necesita infrarrojo) | **Sentinel-2**, gratis, 10 m/píxel |
+| Plagas, enfermedades, malezas | Visión por computadora sobre RGB | **Imágenes de dron**, resolución centimétrica |
 
-**Por qué este esquema y no uno solo:**
-Si desarrollábamos todo sobre Tello, el `MissionPlanner` y el `mapping` iban a estar basados en
-movimientos relativos y dead-reckoning (sin GPS) — algo que hay que tirar y rehacer cuando se
-pasa a un dron real de campo. Programando la misión/mapeo directo contra PX4 (aunque sea
-simulado) evitamos ese trabajo descartable: el código de waypoints GPS es el mismo que se usa
-después con un dron físico. A cambio, perdemos "hardware real" en esa parte hasta que se decida
-comprar un dron PX4 — por eso el Tello cubre la parte de visión, que sí necesita imágenes reales
-desde el día uno.
+No compiten: cubren escalas distintas. El satélite ve el lote entero y dice *dónde mirar*;
+el dron baja a ver *qué está pasando ahí*. Un píxel satelital de 10 metros jamás va a mostrar
+una hoja enferma, y un dron no va a cubrir 5.000 hectáreas en una tarde.
 
-Cuando el pipeline esté validado en simulador + con datos reales del Tello, se evalúa la compra
-de un dron PX4 físico para el piloto de campo (ver sección 8).
+### Sobre el hardware
+
+El proyecto nació apuntando a un DJI Tello y **esa decisión se revirtió** (2026-09-08). El
+Tello es un sistema cerrado: no se le puede cambiar ni agregar la cámara, así que nunca
+podría hacer NDVI. El objetivo de hardware pasó a ser un **dron PX4** (Holybro X500 V2,
+~USD 550), que acepta cualquier cámara — incluida una NoIR de ~USD 30 que sí da infrarrojo.
+
+Mientras tanto **nada está bloqueado**: Sentinel-2 da NDVI real del lote real, el simulador
+de PX4 tiene una cámara (`gz_x500_mono_cam`) para construir toda la plomería de captura, y
+hay datasets públicos de UAV agrícola para entrenar el detector. El dron físico es un
+objetivo de mediano plazo, no un requisito.
+
+El nombre del repo quedó de la etapa Tello. Se mantiene por continuidad del historial.
 
 ## 2. Arquitectura
 
 ```
-                    ┌─────────────────────────┐        ┌──────────────────────────┐
-                    │   PX4 SITL (simulador)    │        │      Tello EDU (real)      │
-                    │   o dron PX4 real a futuro│        │                            │
-                    └────────────┬─────────────┘        └─────────────┬──────────────┘
-                                 │ MAVSDK (UDP, waypoints GPS)         │ djitellopy (UDP, cmds relativos)
-                                 ▼                                    ▼
-                    ┌─────────────────────────┐        ┌──────────────────────────┐
-                    │   PX4FlightController      │        │   TelloFlightController    │
-                    └────────────┬─────────────┘        └─────────────┬──────────────┘
-                                 │                                    │
-                                 ▼                                    ▼
-                    ┌─────────────────────────┐        ┌──────────────────────────┐
-                    │  MissionPlanner (GPS)      │        │   Captura de video/frames  │
-                    │  grilla de waypoints        │        │   (para dataset de visión) │
-                    └────────────┬─────────────┘        └─────────────┬──────────────┘
-                                 │                                    │
-                                 ▼                                    ▼
-                    ┌─────────────────────────┐        ┌──────────────────────────┐
-                    │  Mapping (geolocate.py)    │        │   Vision Pipeline           │
-                    │  posición real vía telemetry│◄──────│   ExG/VARI + YOLOv8         │
-                    └────────────┬─────────────┘  frames  └──────────────────────────┘
-                                 │  + detecciones
-                                 ▼
-                    ┌─────────────────────────┐
-                    │   Reporting (PDF)          │
-                    └─────────────────────────┘
-
-                          ┌────────────────────────────┐
-                          │   FastAPI (orquestación)     │
-                          │ start_mission (SITL o Tello)  │
-                          │ telemetry WS / reports         │
-                          └────────────────────────────┘
+    ┌──────────────────────┐         ┌──────────────────────────┐
+    │  PX4 SITL (simulador)  │         │   Sentinel-2 (satélite)    │
+    │  o dron PX4 real       │         │   NDVI del lote, gratis    │
+    └──────────┬───────────┘         └────────────┬─────────────┘
+               │ MAVSDK (UDP)                      │
+               ▼                                   │
+    ┌──────────────────────┐                      │
+    │  Px4FlightController   │                      │
+    └──────────┬───────────┘                      │
+               │                                   │
+     ┌─────────┴─────────┐                        │
+     ▼                   ▼                        │
+┌──────────────┐  ┌──────────────┐                │
+│ MissionPlanner│  │   Telemetría   │                │
+│ grilla de wp  │  │  lat/lon/alt   │                │
+└──────┬───────┘  └───────┬──────┘                │
+       │                   │                       │
+       ▼                   │                       │
+┌──────────────┐          │   ┌──────────────┐    │
+│EjecutorMision │          └──►│    Mapping     │◄───┘
+│ vuela y vigila│   frames      │ georreferencia │
+└──────────────┘   geotaggeados└───────┬──────┘
+       │                                │
+       ▼                                ▼
+┌──────────────┐               ┌──────────────┐
+│    Visión      │──detecciones─►│   Reporting    │
+│ índices + YOLO │               │      PDF       │
+└──────────────┘               └──────────────┘
 ```
 
-Ambos backends de vuelo (`PX4FlightController`, `TelloFlightController`) implementan la misma
-interfaz abstracta `FlightController`, pero **no se usan para la misma tarea**: PX4/SITL corre
-misiones de barrido con waypoints GPS; Tello se usa en modo manual/simple para capturar video
-sobre un cultivo real.
+La capa de vuelo pasa por la interfaz abstracta `FlightController`, de modo que el resto del
+sistema no sabe ni le importa si abajo hay un simulador o un dron físico: solo cambia la
+dirección de conexión.
 
 ## 3. Estructura del repo
 
 ```
 agrotello/
+├── CLAUDE.md              # contexto de trabajo entre sesiones
+├── PLANNING.md            # este archivo
 ├── README.md
-├── PLANNING.md
-├── pyproject.toml
+├── pyproject.toml         # paquete instalable (pip install -e .)
 ├── requirements.txt
-├── .env.example
-├── .gitignore
+├── missions/              # un YAML por lote
+│   └── lote_prueba.yaml
+├── mapas/                 # recorridos exportados a GeoJSON, uno por corrida
 ├── docs/
 │   ├── architecture.md
-│   ├── mission_format.md
+│   ├── comandos.md        # comandos por entorno y terminal
 │   ├── datasets.md
-│   └── sitl_setup.md         # cómo levantar PX4 SITL local
-├── src/
-│   └── dronesw/
-│       ├── __init__.py
-│       ├── config.py                 (1)
-│       ├── flight/
-│       │   ├── base.py              # interfaz abstracta FlightController (4)
-│       │   ├── px4_controller.py    # MAVSDK — waypoints GPS, contra SITL o dron real(5)
-│       │   ├── tello_controller.py  # djitellopy — captura de video real(5)
-│       │   └── safety.py            # failsafes: batería, geofence, timeout (7)
-│       ├── mission/
-│       │   ├── planner.py           # genera waypoints GPS (grilla sobre polígono del lote) (3)
-│       │   └── executor.py          # ejecuta el plan vía MAVSDK, loguea progreso (6)
-│       ├── vision/
-│       │   ├── capture.py           # lectura del stream de video (Tello)(9)
-│       │   ├── indices.py           # ExG / VARI sobre frames(10)
-│       │   ├── detector.py          # wrapper YOLOv8 (plagas/enfermedades)(10)
-│       │   └── stitching.py         # mosaico del lote (OpenCV Stitcher)(12)
-│       ├── mapping/
-│       │   └── geolocate.py         # posición real vía MAVSDK telemetry -> mapa georreferenciado(11)
-│       ├── reporting/
-│       │   ├── pdf_report.py         (13)
-│       │   └── templates/            (13)
-│       └── api/
-│           ├── main.py              # FastAPI app (2)
-│           ├── routes/               (2)
-│           └── websocket.py         # telemetría/video en vivo (8)
-├── models/          # pesos entrenados (gitignored)
-├── datasets/         # frames del Tello + PlantVillage (gitignored)
-├── notebooks/
-├── tests/
-│   ├── unit/
-│   └── integration/
+│   ├── herramientas.md    # stack y flujo de datos
+│   ├── mission_format.md  # formato del YAML de misión
+│   └── sitl_setup.md      # cómo levantar el simulador
+├── src/dronesw/
+│   ├── config.py                    # (pendiente)
+│   ├── flight/
+│   │   ├── base.py                  # FlightController + capacidades opcionales
+│   │   ├── px4_controller.py        # implementación MAVSDK
+│   │   └── safety.py                # (vacío: el failsafe vive en el ejecutor)
+│   ├── mission/
+│   │   ├── planner.py               # grilla de waypoints con Shapely
+│   │   └── executor.py              # orquestación y vigilancia de batería
+│   ├── vision/                      # (pendiente)
+│   ├── mapping/                     # (pendiente)
+│   ├── reporting/                   # (pendiente)
+│   └── api/                         # (pendiente)
 ├── scripts/
-│   ├── run_mission.py       # --backend sitl|px4|tello
-│   └── train_detector.py
+│   ├── sprint0_hover.py             # vuelo de prueba mínimo
+│   └── run_mission.py               # planifica y vuela un lote
+├── tests/unit/test_planner.py
 └── .github/workflows/ci.yml
 ```
 
 ## 4. Stack técnico
 
-| Capa | Herramienta | Motivo |
+| Capa | Herramienta | Estado |
 |---|---|---|
-| Misión/vuelo simulado | **PX4 SITL** (Docker, headless Gazebo o jMAVSim) | Corre en la PC, $0 hardware, es el target real de producción |
-| Cliente de misión | **MAVSDK-Python** (`pip install mavsdk`) | SDK oficial async, waypoints GPS, telemetría, mismo código para SITL y dron real |
-| Vuelo con hardware real (visión) | `djitellopy` | Único SDK maduro para Tello, usado solo para capturar video real |
-| Visión | OpenCV + `ultralytics` (YOLOv8n) | Liviano, corre bien en CPU |
-| Detección de plagas | YOLOv8n fine-tuned sobre PlantVillage + fotos propias del Tello | Dataset público de arranque |
-| API/orquestación | FastAPI + WebSockets | Async nativo, telemetría en vivo desde SITL o Tello |
-| Reportes | `fpdf2` | PDF sin dependencias pesadas |
-| Config | `pydantic-settings` + `.env` | Type-safe |
-| Logging | `loguru` | Configuración mínima |
-| Tests | `pytest` + mocks de MAVSDK/djitellopy | Ni SITL ni hardware real son reproducibles en CI |
-| CI | GitHub Actions | Lint + tests, sin SITL corriendo (se mockea) |
+| Simulación de vuelo | PX4 SITL + Gazebo (headless) | ✅ en uso |
+| Cliente de vuelo | MAVSDK-Python | ✅ en uso |
+| Geometría de misión | Shapely | ✅ en uso |
+| Configuración de misión | PyYAML | ✅ en uso |
+| Tests | pytest | ✅ en uso |
+| Lint y formato | ruff + black, en GitHub Actions | ✅ en uso |
+| NDVI satelital | Sentinel-2 (Copernicus) | ⬜ Sprint 2 |
+| Cámara simulada | `gz_x500_mono_cam` | ⬜ Sprint 3 |
+| Visión | OpenCV + NumPy | ⬜ Sprint 4 |
+| Detección | Ultralytics YOLOv8 | ⬜ Sprint 4 |
+| Reportes | fpdf2 | ⬜ Sprint 6 |
+| API | FastAPI + WebSockets | ⬜ Sprint 7 |
 
-## 5. Roadmap por sprints (2 semanas c/u, salvo Sprint 0)
+Las dependencias de runtime se declaran en `pyproject.toml`, y se van sumando a medida que
+los módulos las usan de verdad. `requirements.txt` es el entorno de desarrollo completo.
 
-**Sprint 0 — Setup (1 semana), dos frentes en paralelo** — ✅ *frente SITL completado; frente Tello pendiente de hardware*
-*Frente SITL*: levantar PX4 SITL local (Docker, ver `docs/sitl_setup.md`), instalar
-`mavsdk` + `aioconsole`, confirmar `arm()` / `takeoff()` / `land()` contra el simulador.
-*Frente Tello*: conectar al Tello EDU real, comandos básicos (`takeoff`, `land`, batería).
-Failsafe mínimo de batería en ambos backends.
-*Entregable*: script que despega y aterriza tanto en SITL como en el Tello real.
+Ver `docs/herramientas.md` para el detalle de cómo se conectan.
 
-> **Resultado (SITL)**: `scripts/sprint0_hover.py` — conecta, espera estimación de posición,
-> chequea batería, despega a altura configurable, hace hover logueando telemetría y aterriza.
-> El failsafe de batería fue verificado en vuelo, no solo escrito: con `SIM_BAT_MIN_PCT 10` el
-> hover se corta y aterriza al cruzar el umbral. Nota: el chequeo corre una vez por segundo, y
-> como el SITL descarga ~3%/s el disparo ocurre hasta un 3% por debajo del umbral nominal —
-> irrelevante con tasas de descarga reales, pero a tener en cuenta si se ajusta la frecuencia
-> de muestreo.
+## 5. Roadmap por sprints
 
-**Sprint 1 — Misión GPS + captura real**
-`FlightController` abstracto + `Px4FlightController` (MAVSDK) + `TelloFlightController`.
-`MissionPlanner` que genera waypoints GPS en grilla sobre un polígono (lat/lon), probado
-contra SITL. En paralelo, captura de video real con el Tello sobre una planta/maceta de
-prueba, frames guardados con timestamp.
-*Entregable*: misión de barrido con waypoints ejecutada en SITL + primer dataset de frames
-reales del Tello.
+### Sprint 0 — Entorno ✅
 
-**Sprint 2 — Índices de vegetación**
-Cálculo de ExG/VARI sobre los frames reales capturados con el Tello, heatmap de estrés
-hídrico, umbral configurable. Tests unitarios con imágenes de muestra.
-*Entregable*: heatmap sobre frames reales de una planta/maceta/invernadero de prueba.
+WSL2 + Ubuntu, toolchain de PX4, simulador compilado y volando headless, MAVSDK conectado.
+Entregable: `scripts/sprint0_hover.py`, con failsafe de batería verificado en vuelo.
 
-**Sprint 3 — Detección de plagas/enfermedades**
-Dataset (PlantVillage + fotos propias del Tello), fine-tuning YOLOv8n, pipeline de
-inferencia con umbral de confianza. Tests con imágenes mockeadas.
-*Entregable*: detector corriendo sobre frames reales, con métricas de precisión/recall.
+### Sprint 1 — Misión GPS ✅ *(cerrado 2026-09-13)*
 
-**Sprint 4 — Mapeo georreferenciado (SITL)**
-`geolocate.py` usa `telemetry.position()` de MAVSDK (lat/lon reales, no dead-reckoning) para
-ubicar detecciones sobre un mapa del "lote" simulado. Stitching de frames de referencia
-(pueden ser los del Tello, usados como si fueran capturas de la misión) sobre ese mapa.
-*Entregable*: mapa georreferenciado con anomalías posicionadas por coordenadas reales de SITL.
+- `flight/base.py`: interfaz abstracta con capacidades opcionales por protocolo.
+- `flight/px4_controller.py`: implementación MAVSDK.
+- `mission/planner.py`: grilla de waypoints en zigzag sobre un polígono, con Shapely.
+- `mission/executor.py`: orquestación con vigilancia concurrente de batería.
+- `scripts/run_mission.py`: un comando planifica y vuela; `--solo-plan` y exportación GeoJSON.
+- Tests de la geometría.
 
-**Sprint 5 — Reportes**
-Modelo de datos del reporte (anomalías, coordenadas GPS, thumbnails, confianza, timestamp).
-PDF con mapa georreferenciado, listado y estadísticas de la misión.
-*Entregable*: PDF end-to-end combinando misión SITL + detecciones reales del Tello.
+**Entregable cumplido:** 22 de 22 waypoints volados sobre el lote La Florida (5,24 ha,
+Gualeguaychú), con retorno automático y desarmado.
 
-**Sprint 6 — API y orquestación**
-FastAPI: endpoint para lanzar misión (`backend=sitl|tello`), WebSocket de telemetría/video
-en vivo, endpoint de reportes. Config vía `.env`.
-*Entregable*: API funcional para ambos backends.
+### Sprint 2 — NDVI satelital del lote
 
-**Sprint 7 — Dashboard mínimo (opcional/stretch)**
-UI simple para disparar misiones y ver feed/mapa.
+Descargar la escena de Sentinel-2 que cubre el lote, calcular NDVI, recortarlo al polígono
+de la misión y generar un mapa de vigor con zonas clasificadas.
 
-**Sprint 8 — Hardening**
-Geofence (nativo de PX4 + custom para Tello), reconexión ante pérdida de señal MAVSDK/UDP,
-manejo de errores de comandos, logging estructurado, tests de integración.
+Es el primer resultado agronómico real del proyecto, sobre el campo real, sin hardware. A
+10 m/píxel las 5,24 ha de La Florida son unos 520 píxeles: grueso para ver una planta,
+suficiente para decidir a qué sector mandar el dron.
 
-**Sprint 9 — Documentación, demo y decisión de hardware real**
-Documentar resultados de SITL + pipeline de visión validado con datos reales del Tello.
-Con eso ya evaluado, decidir si se compra un dron PX4 físico (peso, autonomía, cámara/gimbal
-necesarios) para el piloto de campo real.
-*Entregable*: repo documentado, demo grabada, decisión de hardware justificada con datos.
+*Entregable*: mapa NDVI del lote con las zonas de menor vigor identificadas.
+
+### Sprint 3 — Captura desde el dron
+
+Suscribirse a la cámara del simulador (`gz_x500_mono_cam`), guardar los frames durante una
+misión y asociar cada uno con la posición GPS del momento.
+
+Las imágenes del simulador no sirven para analizar cultivo — no hay cultivo ahí. Lo que se
+construye es la **plomería**: capturar, geotaggear y almacenar. El día que haya una cámara
+real montada en un dron real, esa cañería ya está probada.
+
+*Entregable*: una misión que aterriza dejando una carpeta de frames con coordenadas.
+
+### Sprint 4 — Visión: índices y detección
+
+Índices de vegetación RGB (ExG, VARI) y detector de plagas/enfermedades con YOLOv8,
+entrenado sobre datasets públicos de UAV agrícola.
+
+Acá el trabajo es sobre imágenes reales de terceros, no del simulador. La validación con
+imágenes propias queda pendiente del hardware.
+
+*Entregable*: detector con métricas de precisión y recall sobre un set de validación.
+
+### Sprint 5 — Mapeo
+
+Unir las piezas: mosaico del lote, detecciones ubicadas por coordenada, cruce con las zonas
+de bajo vigor del NDVI satelital.
+
+*Entregable*: mapa del lote con las anomalías posicionadas.
+
+### Sprint 6 — Reportes
+
+PDF con el mapa, el listado de anomalías, sus coordenadas y las estadísticas del vuelo.
+
+*Entregable*: reporte generado end-to-end desde una misión.
+
+### Sprint 7 — API
+
+FastAPI para lanzar misiones, seguir la telemetría por WebSocket y descargar reportes.
+
+### Sprint 8 — Hardening
+
+Geofence, reconexión ante pérdida de enlace, manejo de errores, logging estructurado, tests
+de integración.
+
+### Sprint 9 — Cierre y decisión de hardware
+
+Documentación final, demo grabada, y la decisión de comprar el dron PX4 tomada con datos
+concretos: qué resolución hizo falta de verdad, a qué altura, con qué cámara.
 
 ## 6. Riesgos y consideraciones
 
-- **Brecha simulador-realidad**: SITL valida la lógica de misión y mapeo, pero no reproduce
-  viento, RF real, ni comportamiento exacto de un autopiloto físico. El piloto de campo (cuando
-  haya dron PX4 real) va a exponer cosas que el simulador no mostró — dejarlo previsto, no asumir
-  que "andar en SITL" es lo mismo que "andar en campo".
-- **Dataset de visión con Tello ≠ altura/ángulo de un dron de campo real**: las fotos del Tello
-  (vuelo bajo, indoor/patio) pueden no generalizar directamente a vistas aéreas de mayor altura de
-  un dron real sobre un lote — hay que revalidar el modelo cuando cambie la plataforma de captura.
-- **Tello sigue teniendo las limitaciones ya conocidas** (WiFi ~30-100m, batería ~13min, sin
-  GPS) — pero ahora estas limitaciones solo afectan al sandbox de visión, no a la arquitectura de
-  misión/mapeo, que ya está diseñada para el caso real desde el principio.
-- **Regulación**: un dron PX4 real (>250g típicamente) cae en categorías de ANAC más estrictas
-  que el Tello — revisar normativa antes de planear vuelos de campo reales.
-- **Dataset de plagas/enfermedades**: PlantVillage es fotos de estudio, no vistas aéreas —
-  validar generalización, etiquetar set propio en Sprint 3.
+- **Brecha simulador-realidad.** El SITL valida la lógica de misión, no el viento ni el
+  comportamiento de un autopiloto físico. El primer vuelo real va a mostrar cosas que el
+  simulador no mostró.
+- **Los datasets públicos no son de tu zona.** Un detector entrenado con cultivos de otro
+  continente puede fallar con los de Entre Ríos. Hay que revalidar con imágenes propias
+  cuando haya hardware.
+- **Resolución satelital.** 10 m/píxel sirve para zonificar, no para diagnosticar. El NDVI
+  dice dónde hay un problema, no cuál es.
+- **Altura y separación siguen desacopladas** en el formato de misión, aunque físicamente
+  dependan una de la otra. Se resuelve cuando se caracterice una cámara real.
+- **Regulación.** Un dron PX4 supera los 250 g y cae en categorías de ANAC más estrictas.
+  Revisar antes de cualquier vuelo real sobre el campo.
 
 ## 7. Métricas de éxito
 
-- Misión de barrido con waypoints GPS ejecutada end-to-end en SITL sin intervención manual
-  (Sprint 1).
-- Precisión/recall del detector de plagas ≥ 70% en set de validación propio (Sprint 3).
-- Error de geolocalización de anomalías en SITL < 1-2m respecto a la posición real simulada
-  (Sprint 4) — mucho mejor que lo que hubiera dado dead-reckoning en Tello.
-- Tiempo de generación del reporte < 30s.
-- Cero crasheos de software en 10 misiones SITL consecutivas + 10 vuelos Tello consecutivos
-  (Sprint 8).
+- ✅ Misión de barrido ejecutada end-to-end en simulador sin intervención manual.
+- ⬜ Mapa NDVI del lote con zonas de bajo vigor identificadas (Sprint 2).
+- ⬜ Frames geotaggeados con error de posición menor a la resolución de la imagen (Sprint 3).
+- ⬜ Detector con precisión y recall ≥ 70% en el set de validación (Sprint 4).
+- ⬜ Reporte generado en menos de 30 s desde el fin de la misión (Sprint 6).
+- ⬜ Diez misiones consecutivas sin fallas de software (Sprint 8).
 
-## 8. Próximos pasos inmediatos
+## 8. Próximos pasos
 
-1. Instalar Docker + levantar PX4 SITL local (ver `docs/sitl_setup.md`), confirmar
-   `arm()`/`takeoff()`/`land()` desde `apython` con MAVSDK antes de escribir código propio.
-2. Comprar el Tello EDU (ya confirmado el listado en MercadoLibre) — conseguir 2-3 baterías
-   extra para las sesiones de captura de video.
-3. Elegir 1-2 plantas/cultivo de prueba accesibles para el sandbox de visión (no depende del
-   simulador ni de un lote real).
-4. Bajar un subset de PlantVillage en paralelo para arrancar a explorar el modelo.
-5. Recién en Sprint 9, con datos concretos de ambos frentes, evaluar la compra de un dron PX4
-   físico — no antes.
+1. Elegir cómo acceder a Sentinel-2: Copernicus Browser para explorar a mano, o una
+   biblioteca de Python para automatizarlo.
+2. Descargar la escena más reciente sin nubes que cubra La Florida.
+3. Calcular el NDVI y recortarlo contra el polígono que ya está en `missions/`.

@@ -15,6 +15,24 @@ Contexto que se pierde entre sesiones. Leer esto primero al retomar el proyecto.
 - Responder en español, conciso y directo.
 - Va paso a paso y pide confirmación entre pasos. No adelantarse varios pasos de una.
 
+## Preguntas de consolidación (pedido suyo, desde 2026-09-13)
+
+**Al terminar cada paso, antes de pasar al siguiente, hacerle dos o tres preguntas sobre lo
+que se acaba de construir.** No es opcional ni se saltea porque el paso salió bien.
+
+Cómo tienen que ser:
+
+- Sobre el **por qué**, no sobre el qué. "¿Por qué rotamos el lote en vez de generar líneas
+  inclinadas?" sirve. "¿Qué hace `_cortar_pasada`?" no: eso lo lee en el código.
+- Al menos una del tipo **"¿qué se rompería si...?"**. Son las que revelan si el modelo mental
+  es real o si solo quedó la forma.
+- **No son un examen.** Si contesta "no sé", eso es información valiosa: significa que hay que
+  volver a explicar o simplificar ese código, no seguir de largo.
+
+El motivo: durante el Sprint 1 le entregué demasiado código ya terminado —archivos de 180
+líneas con asyncio concurrente incluido— y quedó con un repo que funciona pero que no siente
+suyo. Esto existe para corregir eso.
+
 ## Mapa del entorno
 
 | Pieza | Dónde | Notas |
@@ -157,8 +175,41 @@ con failsafe de batería verificado en vuelo.
   automático y desarmado. ~8 min de vuelo
 - 1.9 ✅ `docs/mission_format.md` — campos, cómo elegir los valores y limitaciones actuales
 
-**Sprint 1 cerrado.** Próximo: reescribir `PLANNING.md` (sigue con el Tello como pieza
-central) y arrancar el Sprint 2.
+**Sprint 1 cerrado.**
+
+**Sprint 2 — NDVI satelital de La Florida.** En curso:
+
+- 2.1 ✅ Ver el lote en Copernicus Browser. Fechas sin nubes encontradas: 18/07, 07/08, 30/08
+  y 04/09 de 2026. El lote se ve todo verde, con manchas de tonos distintos (sin amarillos ni
+  marrones): hay variación interna para mapear, pero el rango de NDVI va a ser angosto.
+- 2.2 ✅ Decidido el acceso: **Earth Search (Element 84) + COGs en AWS**, anónimo y gratis
+  (`sentinel-cogs`, RequesterPays falso), con `pystac-client` y `rasterio`. Bandas: B04 (rojo),
+  B08 (NIR), ambas a 10 m, más SCL para descartar nubes. Los datos de Copernicus permiten uso
+  comercial con atribución ("Copernicus Sentinel data 2026"); si algún día esto se vende,
+  migrar a CDSE o Sentinel Hub sería por garantía de servicio, no por licencia. Acordado:
+  el acceso a imágenes va detrás de una interfaz, como `FlightController`.
+- 2.3 ✅ `scripts/buscar_escenas.py` — consulta Earth Search y lista las pasadas del satélite.
+  20 pasadas entre el 01/07 y el 15/09 de 2026, 6 con menos de 20% de nube. Confirmó sus
+  cuatro fechas y encontró dos que se le habían escapado: **08/07 con 0,0%** (la más limpia
+  del rango) y 14/09 con 4,6%. Todas las escenas caen en el tile MGRS **21HUD**.
+  **Nombres de los assets en Earth Search v1** (no son B04/B08): `red`, `nir`, `scl` son los
+  que necesitamos. Ojo: cada banda aparece también con sufijo `-jp2`, que son los JPEG2000
+  originales — hay que usar las versiones sin sufijo, que son los COG.
+- 2.4 ⬜ Leer solo el recorte del lote
+- 2.5 ⬜ Calcular el NDVI
+- 2.6 ⬜ Recortar al polígono y clasificar zonas
+- 2.7 ⬜ Generar el mapa
+- 2.8 ⬜ Tests y documentación
+
+**Decisiones de diseño acordadas en el Sprint 2:**
+
+- La escala de colores del mapa se estira al rango real del lote (percentiles 2 y 98), porque
+  con una escala fija 0-1 su campo sale todo del mismo verde. Contra: mapas con escala
+  estirada no son comparables entre fechas — para comparar hay que fijar la escala.
+- **Toda estadística del lote se informa junto con la cobertura útil** ("NDVI medio 0,61 sobre
+  el 62% del lote"). Las nubes tapan zonas contiguas, así que promediar solo los píxeles
+  claros sesga el resultado de forma silenciosa. Por debajo del 80% de cobertura, descartar
+  la fecha.
 
 Notas del vuelo: `SIM_BAT_DRAIN 1500` descarga mucho más lento de lo esperado (terminó en 97%),
 así que ese vuelo no ejercitó el failsafe de batería — ya verificado en el Sprint 0. Las
@@ -169,12 +220,22 @@ dependencias de runtime se declaran en `pyproject.toml` (`[project] dependencies
 Los Sprints 2 y 3 se hacen con satélite, simulador y datasets públicos. Un dron PX4 real es un
 objetivo de mediano plazo, no un bloqueante.
 
-**Pendiente de reescritura:** `PLANNING.md` todavía describe el esquema híbrido con el Tello
-como pieza central (secciones 1, 2, 4 y el roadmap). Hay que actualizarlo cuando se cierre el
-Sprint 1.
+**`PLANNING.md` reescrito (2026-09-13)** sin el Tello. El roadmap se reordenó: el Sprint 2 pasó
+a ser NDVI satelital del lote (resultado agronómico real, sin hardware), y la captura de
+imágenes desde el simulador se corrió al Sprint 3.
+
+**Maqueta de la interfaz final** (2026-09-13): artifact `agrotello-mockup`, con la vista de
+misión en vivo y la del reporte. El recorrido que dibuja es el real, recalculado en el
+navegador desde `missions/lote_prueba.yaml`. Acordado: al cerrar el Sprint 2 conviene sacarle
+el panel del mapa y hacerlo andar con el NDVI real, para que cada sprint le sume algo visible
+a una interfaz que ya exista, en vez de acumular meses de plomería sin recompensa.
+
+**Nota sobre motivación:** es su primer proyecto de software de drones y la etapa de
+infraestructura le resultó árida. Vale la pena priorizar entregables mirables y señalar el
+avance concreto cuando lo hay.
 
 **Pendientes menores:** los `__init__.py` siguen con `# TODO: implementar` del scaffold, y
 `flight/safety.py` quedó vacío porque la lógica de failsafe terminó dentro del ejecutor
-(decidir si se elimina o se le da contenido cuando entre el Tello).
+(decidir si se elimina o se le da contenido).
 
 El roadmap completo está en `PLANNING.md` sección 5.
