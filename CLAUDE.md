@@ -105,6 +105,12 @@ Ejemplo de referencia: `src/dronesw/mission/planner.py`.
   exige (dos antes de cada `def` de nivel superior). Ya rompió el CI dos veces. Recordarle
   correr `black src scripts tests` después de pegar, hasta que el formateo al guardar
   funcione.
+- **El conjunto de reglas por defecto de ruff cambia entre versiones.** Pasó que el CI (con
+  versiones viejas fijas) daba verde mientras su máquina (con las últimas) marcaba 8 errores.
+  Resuelto declarando las reglas explícitamente en `pyproject.toml`
+  (`select = ["E", "F", "I", "UP", "B", "DTZ", "RUF"]`) y fijando **ruff 0.16.7 y black
+  26.5.1** en los tres lugares: `pyproject.toml`, `requirements.txt` y `ci.yml`. Si alguna vez
+  se suben, subirlas en los tres a la vez.
 
 ## Cómo correr el proyecto
 
