@@ -20,10 +20,14 @@ escala y el desplazamiento declarados junto con los datos.
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import cast
+
 import numpy as np
 import rasterio
 from pystac.item import Item
 from pystac_client import Client
+from rasterio.enums import Resampling
 from rasterio.warp import transform_bounds
 from rasterio.windows import from_bounds as ventana_desde_bordes
 
@@ -55,7 +59,8 @@ def buscar_escenas(mision: DefinicionMision, desde: str, hasta: str) -> list[Ite
         intersects=poligono_geojson(mision),
         datetime=f"{desde}/{hasta}",
     )
-    return sorted(resultado.items(), key=lambda escena: escena.datetime)
+    escenas = [escena for escena in resultado.items() if escena.datetime is not None]
+    return sorted(escenas, key=lambda escena: cast("datetime", escena.datetime))
 
 
 def bordes_del_lote(mision: DefinicionMision) -> tuple[float, float, float, float]:
@@ -65,17 +70,24 @@ def bordes_del_lote(mision: DefinicionMision) -> tuple[float, float, float, floa
     return min(lons), min(lats), max(lons), max(lats)
 
 
-def leer_banda(url: str, mision: DefinicionMision) -> tuple[np.ndarray, dict]:
+def leer_banda(
+    url: str, mision: DefinicionMision, forma: tuple[int, int] | None = None
+) -> tuple[np.ndarray, dict]:
     """Abre la imagen remota y devuelve solo los píxeles del lote, más datos de la escena.
 
     La imagen nunca viaja entera: al pedir una ventana, rasterio traduce el pedido en
     pedidos de rangos de bytes sobre HTTP y trae únicamente los mosaicos que hacen falta.
+
+    `forma` fuerza el tamaño del recorte, para poder alinear bandas de distinta resolución:
+    la clasificación viene a 20 m y las bandas de color a 10, así que sin esto las matrices
+    no coinciden. Se remuestrea con vecino más cercano porque son códigos de categoría —
+    promediar nube (9) con vegetación (4) daría 6, que significa agua.
     """
     with rasterio.open(url) as imagen:
         bordes = transform_bounds("EPSG:4326", imagen.crs, *bordes_del_lote(mision))
         ventana = ventana_desde_bordes(*bordes, transform=imagen.transform)
         ventana = ventana.round_offsets().round_lengths()
-        recorte = imagen.read(1, window=ventana)
+        recorte = imagen.read(1, window=ventana, out_shape=forma, resampling=Resampling.nearest)
 
         info = {
             "crs": str(imagen.crs),

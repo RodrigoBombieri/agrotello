@@ -15,6 +15,47 @@ Contexto que se pierde entre sesiones. Leer esto primero al retomar el proyecto.
 - Responder en español, conciso y directo.
 - Va paso a paso y pide confirmación entre pasos. No adelantarse varios pasos de una.
 
+## En la primera sesión del día: qué sabe hacer el sistema (pedido suyo, desde 2026-09-16)
+
+**Al abrir la primera conversación de un día, antes de cualquier otra cosa, resumirle qué
+puede hacer el código hasta ese momento.** Sirve para retomar el hilo después de días sin
+tocarlo.
+
+Cómo tiene que ser: **en capacidades, no en archivos**. "Puede calcular el recorrido que cubre
+un lote y volarlo solo" sirve; "existe `planner.py`" no dice nada. Corto — la lista de abajo y
+una línea de en qué paso estamos. Si un día ya hubo conversación, no repetirlo.
+
+### Qué sabe hacer hoy
+
+*(Mantener actualizada al cerrar cada paso.)*
+
+1. Definir un lote en un archivo de texto: su contorno en coordenadas y cómo quiere volarse
+   (altura, separación entre pasadas, velocidad, orientación, margen del alambrado).
+2. Calcular el recorrido en zigzag que cubre ese lote, recortado contra su forma real.
+3. Exportar ese recorrido a un mapa que se ve sobre la imagen satelital en geojson.io.
+4. Volar el recorrido solo, en el simulador PX4: despega, recorre los waypoints, vuelve y
+   aterriza, vigilando la batería y abortando si no alcanza.
+5. Hacer un vuelo de prueba simple (despegue, hover, aterrizaje) con el mismo failsafe.
+6. Preguntarle al catálogo de Sentinel-2 qué imágenes hay del lote en un rango de fechas y
+   con cuánta nube tenía cada una.
+7. Traer del satélite únicamente el recorte del lote (33 x 33 píxeles) de la banda roja, la
+   infrarroja y la de clasificación, sin descargar la escena de un gigabyte.
+8. Calcular el NDVI de ese recorte descartando los píxeles con nube, sombra o nieve, y
+   resumirlo en promedio, mediana, rango, percentiles e histograma — siempre acompañado del
+   porcentaje del lote que efectivamente pudo medir.
+
+**Todavía no puede:** separar el lote en zonas ni dibujar el mapa, ni hacer nada con imágenes
+tomadas desde el dron, ni generar reportes.
+
+## Antes de cada paso: describir, después codear (pedido suyo, desde 2026-09-16)
+
+**Antes de pasarle código, explicar brevemente qué vamos a hacer en ese paso y por qué.** Dos
+o tres párrafos alcanzan: qué problema resuelve, qué decisiones tiene, qué va a mirar al
+probarlo. Recién después, el código.
+
+Junto con las preguntas de consolidación del final, esto arma el sandwich: entiende antes de
+pegar, y verifica después de correr.
+
 ## Preguntas de consolidación (pedido suyo, desde 2026-09-13)
 
 **Al terminar cada paso, antes de pasar al siguiente, hacerle dos o tres preguntas sobre lo
@@ -201,8 +242,27 @@ con failsafe de batería verificado en vuelo.
   **Nombres de los assets en Earth Search v1** (no son B04/B08): `red`, `nir`, `scl` son los
   que necesitamos. Ojo: cada banda aparece también con sufijo `-jp2`, que son los JPEG2000
   originales — hay que usar las versiones sin sufijo, que son los COG.
-- 2.4 ⬜ Leer solo el recorte del lote
-- 2.5 ⬜ Calcular el NDVI
+- 2.4 ✅ `src/dronesw/satelite.py` (módulo nuevo: búsqueda + lectura) y `scripts/leer_lote.py`.
+  `buscar_escenas.py` quedó como CLI liviano. Lee **33 x 33 px de una escena de 120.560.400**
+  (1 de cada 110.707). Dos hallazgos: el **desplazamiento da 0.0**, o sea que Element 84 ya lo
+  aplicó y el NDVI se puede calcular sobre los enteros crudos; y el **SCL viene a 20 m**
+  (5.490² px, recorte de 17 x 16), así que **no alinea con el NDVI de 10 m** — hay que
+  remuestrearlo al leer, con vecino más cercano porque son códigos de categoría, nunca
+  promediando. El SCL del 08/07 dio solo valores 4 y 5 (vegetación y suelo desnudo): confirma
+  que no había nubes sobre el lote.
+- 2.5 ✅ `src/dronesw/vision/indices.py` (NDVI, máscara de nubes a partir del SCL y resumen
+  estadístico) y `scripts/ndvi_lote.py` (CLI con histograma de texto). `leer_banda` sumó el
+  parámetro `forma` para remuestrear el SCL de 20 m a la grilla de 10 m con vecino más
+  cercano. Se descartan los códigos SCL 0, 1, 2, 3, 8, 9, 10 y 11; se conservan 4
+  (vegetación), 5 (suelo), 6 (agua) y 7 (sin clasificar). Trampa evitada: restar bandas
+  uint16 sin convertirlas a float hace underflow silencioso donde el rojo supera al
+  infrarrojo, y el NDVI sale enorme y positivo en vez de negativo.
+  **Primer resultado agronómico real:** 08/07 dio NDVI medio 0,476 y 30/08 dio 0,604, las dos
+  con 100% de cobertura útil — el lote creció de invierno a primavera. La escena del 30/08
+  figuraba con 16,6% de nube en el catálogo y aun así el lote salió entero: confirmó en la
+  práctica que el porcentaje de la escena no dice nada del lote. Las distribuciones son
+  unimodales (las manchas de distinto verde son un gradiente, no dos poblaciones) y hay ~8%
+  de píxeles bajos que persisten en las dos fechas: primer candidato a zona real para el 2.6.
 - 2.6 ⬜ Recortar al polígono y clasificar zonas
 - 2.7 ⬜ Generar el mapa
 - 2.8 ⬜ Tests y documentación
