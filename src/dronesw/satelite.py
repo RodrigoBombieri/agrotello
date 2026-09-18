@@ -9,6 +9,7 @@ imágenes únicamente los píxeles del campo, sin descargar el resto.
 - `bordes_del_lote`: calcula el rectángulo que encierra el lote, en grados.
 - `leer_banda`: abre una imagen remota y devuelve solo el recorte del lote.
 - `mascara_del_lote`: marca qué píxeles del recorte caen realmente dentro del campo.
+- `reproyectar_a_grados`: pasa un recorte de UTM a latitud y longitud.
 
 Técnico: el catálogo es la API STAC de Earth Search (Element 84), que indexa las copias en
 formato COG del archivo de Sentinel-2 en AWS; el acceso es anónimo. Las imágenes están en
@@ -26,12 +27,18 @@ from typing import cast
 
 import numpy as np
 import rasterio
+from affine import Affine
 from pystac.item import Item
 from pystac_client import Client
 from rasterio.enums import Resampling
 from rasterio.features import geometry_mask
-from rasterio.warp import transform_bounds, transform_geom
-from rasterio.windows import Affine
+from rasterio.transform import array_bounds
+from rasterio.warp import (
+    calculate_default_transform,
+    reproject,
+    transform_bounds,
+    transform_geom,
+)
 from rasterio.windows import from_bounds as ventana_desde_bordes
 
 from dronesw.mission.planner import DefinicionMision
@@ -121,3 +128,39 @@ def mascara_del_lote(
     """
     geometria = transform_geom("EPSG:4326", crs, poligono_geojson(mision))
     return geometry_mask([geometria], out_shape=forma, transform=transformacion, invert=True)
+
+
+def reproyectar_a_grados(
+    datos: np.ndarray, crs: str, transformacion: Affine
+) -> tuple[np.ndarray, tuple[float, float, float, float]]:
+    """Pasa un recorte de UTM a grados y devuelve sus bordes (oeste, sur, este, norte).
+
+    Los mapas web ubican una imagen por sus cuatro esquinas en latitud y longitud, y dan por
+    sentado que sus filas corren derecho de este a oeste. Un recorte en UTM no cumple eso: en
+    La Florida el norte de la cuadrícula está girado un grado respecto del norte real, casi
+    seis metros de corrimiento de punta a punta del lote.
+
+    La matriz cambia de forma al reproyectarse, porque el recorte entra torcido en la grilla
+    nueva. Se remuestrea con vecino más cercano para no inventar valores intermedios.
+    """
+    alto, ancho = datos.shape
+    izquierda, abajo, derecha, arriba = array_bounds(alto, ancho, transformacion)
+    destino, ancho_destino, alto_destino = calculate_default_transform(
+        crs, "EPSG:4326", ancho, alto, izquierda, abajo, derecha, arriba
+    )
+    if ancho_destino is None or alto_destino is None:
+        raise RuntimeError("Rasterio no devolvió el tamaño del recorte reproyectado")
+
+    salida = np.full((int(alto_destino), int(ancho_destino)), np.nan, dtype="float32")
+    reproject(
+        source=datos,
+        destination=salida,
+        src_transform=transformacion,
+        src_crs=crs,
+        dst_transform=destino,
+        dst_crs="EPSG:4326",
+        src_nodata=np.nan,
+        dst_nodata=np.nan,
+        resampling=Resampling.nearest,
+    )
+    return salida, array_bounds(alto_destino, ancho_destino, destino)

@@ -7,6 +7,14 @@ Contexto que se pierde entre sesiones. Leer esto primero al retomar el proyecto.
 - **El código va en el chat, no directo al repo.** Él lo copia, analiza y lo pega en sus archivos.
   Escribir archivos directamente solo si lo pide explícitamente. Los documentos (`docs/`,
   `PLANNING.md`, este archivo) sí se escriben directo.
+- **Primero el código, después los imports** (pedido suyo, 2026-09-18). Su editor borra al
+  guardar los imports que todavía no usa nadie, así que si los pega antes del código que los
+  usa, desaparecen — y peor, el autoimport se los repone después apuntando al módulo
+  equivocado. Ya pasó: `Affine` terminó importado de `rasterio.windows` en vez de `affine`.
+  En cada paso, entonces: bloques de código primero, bloque de imports al final.
+- **Al pasarle un bloque que va en el medio de una función, mostrar las líneas de alrededor**,
+  no describir dónde va ("justo antes de tal if"). Un bloque suelto se pega con la indentación
+  equivocada: ya terminó anidado dentro del `if` anterior y rompió el archivo.
 - **Etiquetar siempre la terminal** antes de cada bloque de comandos. Para no confundir entre los
   cinco contextos. Las etiquetas están definidas en `docs/comandos.md`:
   `[Git Bash]`, `[Ubuntu · PX4]`, `[Ubuntu · proyecto]`, `[pxh>]`, `[apython]`.
@@ -47,8 +55,11 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
    en el rectángulo, y separar lo que queda en zona floja, normal y vigorosa, cada una medida
    en hectáreas.
 
-**Todavía no puede:** dibujar el mapa, ni comparar dos fechas entre sí, ni hacer nada con
-imágenes tomadas desde el dron, ni generar reportes.
+10. Dibujar ese NDVI como un mapa de colores sobre la foto satelital del campo, en una página
+    que se abre con doble clic, con la escala y sus límites impresos al costado.
+
+**Todavía no puede:** comparar dos fechas entre sí, ni hacer nada con imágenes tomadas desde
+el dron, ni generar reportes.
 
 ## Antes de cada paso: describir, después codear (pedido suyo, desde 2026-09-16)
 
@@ -56,8 +67,10 @@ imágenes tomadas desde el dron, ni generar reportes.
 o tres párrafos alcanzan: qué problema resuelve, qué decisiones tiene, qué va a mirar al
 probarlo. Recién después, el código.
 
-Junto con las preguntas de consolidación del final, esto arma el sandwich: entiende antes de
-pegar, y verifica después de correr.
+Esto es lo que quedó en pie de aquel esquema: entiende antes de pegar. La otra mitad —las
+preguntas al final— se discontinuó el 2026-09-18 (ver la sección siguiente). Al no haber
+preguntas, la explicación de antes carga con todo el peso: decir qué tiene que mirar en el
+resultado y por qué, para que el paso se entienda sin interrogarlo.
 
 ## Preguntas de consolidación: discontinuadas (2026-09-18)
 
@@ -283,7 +296,28 @@ con failsafe de batería verificado en vuelo.
   por zona no son comparables entre fechas** — siempre van a dar cerca de un tercio. Lo que
   sí va a ser comparable, y necesita el mapa del 2.7, es si la zona floja cae en el mismo
   lugar del campo las dos veces.
-- 2.7 ⬜ Generar el mapa
+- 2.7 ✅ `src/dronesw/vision/mapa.py` (nuevo) y bandera `--mapa` en `ndvi_lote.py` (no un
+  script aparte: habría duplicado búsqueda, lectura, recorte y NDVI). Genera en `mapas/` un
+  PNG con transparencia y un HTML autocontenido que lo apila sobre la capa satelital de Esri
+  con `imageOverlay` de Leaflet, con el PNG incrustado en base64 — se abre con doble clic.
+  El panel lleva impresa la escala y el aviso de no comparar entre fechas: la restricción
+  queda escrita en el entregable, no solo en la conversación.
+  **Reproyección obligatoria:** `imageOverlay` ubica la imagen por sus esquinas en grados y
+  asume que sus filas corren de este a oeste. El recorte está en UTM 21S, cuyo norte de
+  cuadrícula está girado 1,02° respecto del real a esta longitud — 5,9 m de corrimiento de
+  punta a punta del lote. `reproyectar_a_grados` lo endereza; la matriz pasa de 33 x 33 a
+  31 x 36, que es correcto y no un error.
+  Trampas de matplotlib: **`cm.get_cmap` está deprecada y desaparece en 3.11**, así que con
+  `matplotlib>=3.7` el CI se rompería solo el día que salga; se usa
+  `colormaps.get_cmap(PALETA)` (que además Pylance tipa bien, cosa que `colormaps[PALETA]`
+  no) y el piso subió a `matplotlib>=3.9`.
+  **Resultado:** el patrón espacial persiste entre el 07/08 y el 30/08. Correlación píxel a
+  píxel r = 0,51; el 60% del tercio más flojo de una fecha sigue en el tercio más flojo de la
+  otra, contra el 33% que daría el azar. **1,05 ha quedan flojas en las dos fechas y 1,29 ha
+  vigorosas en las dos**, y las dos manchas son contiguas, no salpicadas — el ruido daría sal
+  y pimienta. El 40% restante no persiste. Medido a ojo sobre los PNG (invirtiendo la paleta),
+  no dentro del proyecto: **comparar dos fechas es la función que falta y el próximo candidato
+  natural** después del 2.8.
 - 2.8 ⬜ Tests y documentación
 
 **Decisiones de diseño acordadas en el Sprint 2:**

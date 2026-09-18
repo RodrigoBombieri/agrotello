@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>La Florida — 30/08/2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; }
+  #mapa { height: 100vh; }
+  .panel {
+    position: absolute; z-index: 1000; right: 12px; top: 12px; width: 220px;
+    background: #fff; padding: 12px 14px; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  }
+  .barra {
+    height: 14px; border-radius: 3px; margin: 8px 0 4px;
+    background: linear-gradient(to right,
+      #a50026, #f46d43, #fee08b, #a6d96a, #1a9850);
+  }
+  .extremos { display: flex; justify-content: space-between; color: #555; }
+  .aviso { margin-top: 10px; color: #777; font-size: 12px; line-height: 1.35; }
+</style>
+<div class="panel">
+  <strong>La Florida — 30/08/2026</strong>
+  <div class="barra"></div>
+  <div class="extremos"><span>0.440</span><span>0.797</span></div>
+  <div class="aviso">
+    Escala estirada a este lote y esta fecha (0.44, 0.53, 0.62, 0.71, 0.80).
+    No comparar con el mapa de otra fecha.
+  </div>
+</div>
+<div id="mapa"></div>
+<script>
+  const bordes = [[-32.69745576468397, -58.897149812054984], [-32.694403570903255, -58.8936053289548]];
+  const mapa = L.map('mapa');
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Esri' }
+  ).addTo(mapa);
+  L.imageOverlay('data:image/png;base64,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', bordes, { opacity: 0.85 }).addTo(mapa);
+  L.rectangle(bordes, { color: '#fff', weight: 1, fill: false, dashArray: '4 4' }).addTo(mapa);
+  mapa.fitBounds(bordes, { padding: [40, 40] });
+</script>
+</html>

@@ -5,7 +5,7 @@ los píxeles tapados por nubes. Informa el resultado junto con qué parte del lo
 de verdad.
 
 - `_histograma`: dibuja la distribución de valores con caracteres de texto.
-- `main`: encadena la búsqueda, la lectura, el cálculo, la zonificación y el informe.
+- `main`: encadena la búsqueda, la lectura, el cálculo, la zonificación, el mapa y el informe.
 
 Técnico: la clasificación se lee forzando la forma de las bandas de color, porque viene a 20 m
 y ellas a 10. Si la cobertura útil baja del umbral, la fecha se descarta: un promedio calculado
@@ -28,8 +28,10 @@ from dronesw.satelite import (
     buscar_escenas,
     leer_banda,
     mascara_del_lote,
+    reproyectar_a_grados,
 )
 from dronesw.vision.indices import calcular_ndvi, mascara_utilizable, resumir
+from dronesw.vision.mapa import colorear, guardar_html, guardar_png
 from dronesw.vision.zonas import clasificar
 
 COBERTURA_MINIMA_PCT = 80.0
@@ -52,6 +54,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description="Calcula el NDVI del lote para una fecha.")
     p.add_argument("mision", type=Path, help="Archivo YAML del lote")
     p.add_argument("--fecha", required=True, help="Día de la escena (AAAA-MM-DD)")
+    p.add_argument("--mapa", action="store_true", help="Generar también el mapa en mapas/")
     args = p.parse_args()
 
     mision = cargar_mision(args.mision)
@@ -94,6 +97,22 @@ def main() -> int:
             f"\n  AVISO: el lote varía muy poco (desvío {zonificacion.desvio:.3f}). "
             f"Las zonas están separando ruido, no vigor."
         )
+
+    if args.mapa:
+        grados, bordes = reproyectar_a_grados(ndvi, info["crs"], info["transformacion"])
+        imagen = colorear(grados, resumen.p2, resumen.p98)
+        titulo = f"{mision.nombre} — {escena.datetime:%d/%m/%Y}"
+        base = Path("mapas") / f"ndvi_{escena.datetime:%Y%m%d}"
+        guardar_png(imagen, base.with_suffix(".png"))
+        guardar_html(
+            base.with_suffix(".png"),
+            bordes,
+            base.with_suffix(".html"),
+            titulo,
+            resumen.p2,
+            resumen.p98,
+        )
+        print(f"\n  mapa  {base.with_suffix('.html')}")
 
     if resumen.cobertura_pct < COBERTURA_MINIMA_PCT:
         print(
