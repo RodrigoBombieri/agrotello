@@ -98,11 +98,23 @@ class ResumenNdvi:
         )
 
 
-def resumir(ndvi: np.ndarray) -> ResumenNdvi:
-    """Resume el NDVI del lote ignorando los píxeles descartados."""
+def resumir(ndvi: np.ndarray, dentro: np.ndarray | None = None) -> ResumenNdvi:
+    """Resume el NDVI del lote ignorando los píxeles descartados.
+
+    `dentro` marca qué píxeles pertenecen al campo. Sin él, la cobertura se calcula contra
+    todo el recorte rectangular y un lote perfectamente despejado puede informar 50%: los
+    píxeles de afuera del alambrado no son lote sin ver, simplemente no son lote.
+    """
     utiles = int(np.count_nonzero(~np.isnan(ndvi)))
     if utiles == 0:
         raise ValueError("No quedó ningún píxel utilizable: la fecha no sirve para este lote")
+
+    if dentro is None:
+        totales = int(ndvi.size)
+    else:
+        if dentro.shape != ndvi.shape:
+            raise ValueError(f"La máscara del lote no coincide: {dentro.shape} contra {ndvi.shape}")
+        totales = int(np.count_nonzero(dentro))
 
     return ResumenNdvi(
         medio=float(np.nanmean(ndvi)),
@@ -111,6 +123,6 @@ def resumir(ndvi: np.ndarray) -> ResumenNdvi:
         maximo=float(np.nanmax(ndvi)),
         p2=float(np.nanpercentile(ndvi, 2)),
         p98=float(np.nanpercentile(ndvi, 98)),
-        pixeles_totales=int(ndvi.size),
+        pixeles_totales=totales,
         pixeles_utiles=utiles,
     )

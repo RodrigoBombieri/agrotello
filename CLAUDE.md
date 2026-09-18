@@ -43,9 +43,12 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
 8. Calcular el NDVI de ese recorte descartando los píxeles con nube, sombra o nieve, y
    resumirlo en promedio, mediana, rango, percentiles e histograma — siempre acompañado del
    porcentaje del lote que efectivamente pudo medir.
+9. Recortar ese NDVI contra el contorno real del lote, descartando el campo vecino que entra
+   en el rectángulo, y separar lo que queda en zona floja, normal y vigorosa, cada una medida
+   en hectáreas.
 
-**Todavía no puede:** separar el lote en zonas ni dibujar el mapa, ni hacer nada con imágenes
-tomadas desde el dron, ni generar reportes.
+**Todavía no puede:** dibujar el mapa, ni comparar dos fechas entre sí, ni hacer nada con
+imágenes tomadas desde el dron, ni generar reportes.
 
 ## Antes de cada paso: describir, después codear (pedido suyo, desde 2026-09-16)
 
@@ -56,23 +59,15 @@ probarlo. Recién después, el código.
 Junto con las preguntas de consolidación del final, esto arma el sandwich: entiende antes de
 pegar, y verifica después de correr.
 
-## Preguntas de consolidación (pedido suyo, desde 2026-09-13)
+## Preguntas de consolidación: discontinuadas (2026-09-18)
 
-**Al terminar cada paso, antes de pasar al siguiente, hacerle dos o tres preguntas sobre lo
-que se acaba de construir.** No es opcional ni se saltea porque el paso salió bien.
+**Ya no hacerle preguntas al terminar cada paso.** Las pidió el 2026-09-13 y las dio de baja
+el 2026-09-18 ("no me hagas mas preguntas al finalizar"). No reintroducirlas.
 
-Cómo tienen que ser:
-
-- Sobre el **por qué**, no sobre el qué. "¿Por qué rotamos el lote en vez de generar líneas
-  inclinadas?" sirve. "¿Qué hace `_cortar_pasada`?" no: eso lo lee en el código.
-- Al menos una del tipo **"¿qué se rompería si...?"**. Son las que revelan si el modelo mental
-  es real o si solo quedó la forma.
-- **No son un examen.** Si contesta "no sé", eso es información valiosa: significa que hay que
-  volver a explicar o simplificar ese código, no seguir de largo.
-
-El motivo: durante el Sprint 1 le entregué demasiado código ya terminado —archivos de 180
-líneas con asyncio concurrente incluido— y quedó con un repo que funciona pero que no siente
-suyo. Esto existe para corregir eso.
+Lo que sigue en pie es la mitad de adelante del sandwich: describir el paso antes de tirar
+código (sección de arriba). El problema que las preguntas venían a resolver —que en el
+Sprint 1 recibió demasiado código ya terminado y el repo no le resultaba propio— se cubre
+ahora explicando bien antes, y señalando en el resultado qué mirar y por qué.
 
 ## Mapa del entorno
 
@@ -263,7 +258,31 @@ con failsafe de batería verificado en vuelo.
   práctica que el porcentaje de la escena no dice nada del lote. Las distribuciones son
   unimodales (las manchas de distinto verde son un gradiente, no dos poblaciones) y hay ~8%
   de píxeles bajos que persisten en las dos fechas: primer candidato a zona real para el 2.6.
-- 2.6 ⬜ Recortar al polígono y clasificar zonas
+- 2.6 ✅ `src/dronesw/vision/zonas.py` (nuevo) y `mascara_del_lote` en `satelite.py`.
+  **El rectángulo que se venía leyendo era el doble del lote**: el polígono de La Florida
+  mide 5,23 ha y su bounding box 10,50 ha, o sea que el 50,2% de los píxeles promediados
+  hasta el 2.5 eran del campo vecino. Se rasteriza el polígono con `geometry_mask`
+  (`invert=True`), contando el **centro** del píxel y no el contacto con el borde:
+  `all_touched=True` daba 5,93 ha contra 5,23 reales. Medido: 523 px = **5,23 ha exactas**.
+  Dos consecuencias de diseño: `leer_banda` ahora devuelve también la transformación de la
+  ventana, corregida por `Affine.scale` cuando se fuerza `forma` (si no, la máscara se
+  dibujaría sobre una grilla de 20 m); y `resumir` recibe `dentro=` para que la cobertura se
+  calcule contra los píxeles del lote y no contra el rectángulo — sin eso un lote despejado
+  informaba 48% y se autodescartaba por el umbral del 80%.
+  Zonas por media ± 0,5 desvío estándar, no terciles. **Corregido durante el desarrollo:**
+  yo iba a justificarlo diciendo que los desvíos no parten un lote parejo en tres y los
+  terciles sí; lo probé y es falso — con distribución normal dan casi lo mismo (30/38/31).
+  La ventaja real es que siguen la forma de la distribución: con dos poblaciones separadas
+  la zona intermedia queda en 0% en vez de llenarse. Para el lote genuinamente uniforme está
+  `UMBRAL_UNIFORME = 0.03`, que dispara un aviso. Trampa: un lote constante **no** da desvío
+  cero sino ~1e-7 por redondeo en float32, y sin `DESVIO_DESPRECIABLE` caía todo en
+  "vigoroso".
+  **Números corregidos del lote:** 07/08 da NDVI medio 0,626 y 30/08 da 0,623 (antes,
+  contaminados por el vecino, daban más bajo). Los dos con 100% de cobertura. Las dos fechas
+  reparten ~32/36/32 entre flojo, normal y vigoroso: **con cortes relativos las hectáreas
+  por zona no son comparables entre fechas** — siempre van a dar cerca de un tercio. Lo que
+  sí va a ser comparable, y necesita el mapa del 2.7, es si la zona floja cae en el mismo
+  lugar del campo las dos veces.
 - 2.7 ⬜ Generar el mapa
 - 2.8 ⬜ Tests y documentación
 
@@ -303,5 +322,13 @@ avance concreto cuando lo hay.
 **Pendientes menores:** los `__init__.py` siguen con `# TODO: implementar` del scaffold, y
 `flight/safety.py` quedó vacío porque la lógica de failsafe terminó dentro del ejecutor
 (decidir si se elimina o se le da contenido).
+
+**Limitación conocida, para el 2.8:** el recorte del SCL no queda perfectamente alineado con
+el de las bandas de color. Las dos ventanas se calculan desde el mismo bounding box en
+grados, pero se redondean a píxeles de distinto tamaño (20 m contra 10 m), así que el SCL
+cubre unos 340 x 320 m donde las bandas cubren 330 x 320. Al forzarlo a 33 x 33 queda
+estirado ~3%, o sea que la máscara de nubes puede errarle por un píxel en los bordes. Se
+arregla leyendo el SCL con los bordes exactos de la ventana del rojo en vez del bbox en
+grados.
 
 El roadmap completo está en `PLANNING.md` sección 5.

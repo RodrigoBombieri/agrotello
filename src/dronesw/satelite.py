@@ -8,6 +8,7 @@ imágenes únicamente los píxeles del campo, sin descargar el resto.
 - `buscar_escenas`: lista las pasadas disponibles, ordenadas por fecha.
 - `bordes_del_lote`: calcula el rectángulo que encierra el lote, en grados.
 - `leer_banda`: abre una imagen remota y devuelve solo el recorte del lote.
+- `mascara_del_lote`: marca qué píxeles del recorte caen realmente dentro del campo.
 
 Técnico: el catálogo es la API STAC de Earth Search (Element 84), que indexa las copias en
 formato COG del archivo de Sentinel-2 en AWS; el acceso es anónimo. Las imágenes están en
@@ -28,7 +29,9 @@ import rasterio
 from pystac.item import Item
 from pystac_client import Client
 from rasterio.enums import Resampling
-from rasterio.warp import transform_bounds
+from rasterio.features import geometry_mask
+from rasterio.warp import transform_bounds, transform_geom
+from rasterio.windows import Affine
 from rasterio.windows import from_bounds as ventana_desde_bordes
 
 from dronesw.mission.planner import DefinicionMision
@@ -89,10 +92,32 @@ def leer_banda(
         ventana = ventana.round_offsets().round_lengths()
         recorte = imagen.read(1, window=ventana, out_shape=forma, resampling=Resampling.nearest)
 
+        transformacion = imagen.window_transform(ventana)
+        if forma is not None:
+            # Al forzar la forma cambia el tamaño del píxel, y la transformación tiene que
+            # seguirlo: si no, la máscara del lote se dibujaría sobre una grilla que no existe.
+            transformacion *= Affine.scale(ventana.width / forma[1], ventana.height / forma[0])
+
         info = {
             "crs": str(imagen.crs),
+            "transformacion": transformacion,
             "escena_px": imagen.width * imagen.height,
             "escala": imagen.scales[0],
             "desplazamiento": imagen.offsets[0],
         }
     return recorte, info
+
+
+def mascara_del_lote(
+    mision: DefinicionMision, crs: str, transformacion: Affine, forma: tuple[int, int]
+) -> np.ndarray:
+    """Devuelve True en los píxeles del recorte cuyo centro cae dentro del lote.
+
+    El recorte es el rectángulo que encierra al campo, y para un lote rotado eso puede ser
+    el doble de superficie: sin esta máscara, las estadísticas mezclan el lote vecino.
+
+    Se cuenta el centro del píxel y no el simple contacto con el borde: un píxel que el
+    alambrado cruza por la mitad es mitad de cada campo, y sumarlo ensucia el promedio.
+    """
+    geometria = transform_geom("EPSG:4326", crs, poligono_geojson(mision))
+    return geometry_mask([geometria], out_shape=forma, transform=transformacion, invert=True)

@@ -5,7 +5,7 @@ los píxeles tapados por nubes. Informa el resultado junto con qué parte del lo
 de verdad.
 
 - `_histograma`: dibuja la distribución de valores con caracteres de texto.
-- `main`: encadena la búsqueda, la lectura, el cálculo y el informe.
+- `main`: encadena la búsqueda, la lectura, el cálculo, la zonificación y el informe.
 
 Técnico: la clasificación se lee forzando la forma de las bandas de color, porque viene a 20 m
 y ellas a 10. Si la cobertura útil baja del umbral, la fecha se descarta: un promedio calculado
@@ -27,8 +27,10 @@ from dronesw.satelite import (
     BANDA_ROJO,
     buscar_escenas,
     leer_banda,
+    mascara_del_lote,
 )
 from dronesw.vision.indices import calcular_ndvi, mascara_utilizable, resumir
+from dronesw.vision.zonas import clasificar
 
 COBERTURA_MINIMA_PCT = 80.0
 
@@ -62,19 +64,36 @@ def main() -> int:
     print(f"\nLote {mision.nombre} — {escena.datetime:%d/%m/%Y}")
     print(f"Escena {escena.id}")
 
-    rojo, _ = leer_banda(escena.assets[BANDA_ROJO].href, mision)
+    rojo, info = leer_banda(escena.assets[BANDA_ROJO].href, mision)
     infrarrojo, _ = leer_banda(escena.assets[BANDA_INFRARROJO].href, mision)
     # La clasificación viene a 20 m: se fuerza a la forma de las bandas de color.
     clasificacion, _ = leer_banda(escena.assets[BANDA_CLASIFICACION].href, mision, forma=rojo.shape)
 
-    mascara = mascara_utilizable(clasificacion)
-    ndvi = calcular_ndvi(rojo, infrarrojo, mascara=mascara)
-    resumen = resumir(ndvi)
+    dentro = mascara_del_lote(mision, info["crs"], info["transformacion"], rojo.shape)
+    ndvi = calcular_ndvi(rojo, infrarrojo, mascara=mascara_utilizable(clasificacion) & dentro)
+    resumen = resumir(ndvi, dentro=dentro)
+    zonificacion = clasificar(ndvi)
 
     print(f"\n  {resumen}")
-    print(f"  píxeles útiles  {resumen.pixeles_utiles} de {resumen.pixeles_totales}")
+    print(
+        f"  recorte {rojo.shape[0]} x {rojo.shape[1]} px, {resumen.pixeles_totales} dentro del lote"
+    )
+    print(f"  superficie medida  {zonificacion.hectareas:.2f} ha")
     print(f"  percentiles 2 y 98  {resumen.p2:.3f} a {resumen.p98:.3f}")
     print(f"\n  distribución:\n{_histograma(ndvi)}")
+
+    print(f"\n  zonas (cortes en {zonificacion.corte_bajo:.3f} y {zonificacion.corte_alto:.3f}):")
+    for zona in zonificacion.zonas:
+        print(
+            f"    {zona.nombre:9} {zona.hectareas:5.2f} ha "
+            f"{zonificacion.porcentaje(zona):5.1f} %   NDVI medio {zona.ndvi_medio:.3f}"
+        )
+
+    if zonificacion.uniforme:
+        print(
+            f"\n  AVISO: el lote varía muy poco (desvío {zonificacion.desvio:.3f}). "
+            f"Las zonas están separando ruido, no vigor."
+        )
 
     if resumen.cobertura_pct < COBERTURA_MINIMA_PCT:
         print(
