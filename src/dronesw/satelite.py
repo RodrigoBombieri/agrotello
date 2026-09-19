@@ -103,7 +103,7 @@ def leer_banda(
         if forma is not None:
             # Al forzar la forma cambia el tamaño del píxel, y la transformación tiene que
             # seguirlo: si no, la máscara del lote se dibujaría sobre una grilla que no existe.
-            transformacion *= Affine.scale(ventana.width / forma[1], ventana.height / forma[0])
+            transformacion @= Affine.scale(ventana.width / forma[1], ventana.height / forma[0])
 
         info = {
             "crs": str(imagen.crs),

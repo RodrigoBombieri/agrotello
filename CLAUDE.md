@@ -215,7 +215,7 @@ que es lo que valida el CI.
 **Sprint 0 — cerrado** (lado SITL). Entorno completo, PX4 volando, `scripts/sprint0_hover.py`
 con failsafe de batería verificado en vuelo.
 
-**Sprint 1 — en curso.** Pasos:
+**Sprint 1 — cerrado.** Pasos:
 
 - 1.1 ✅ Formato de misión — `missions/lote_prueba.yaml`, lote "La Florida" de 5,24 ha
 - 1.2 ✅ `flight/base.py` — `FlightController` + `SoportaMisionGps` + `SoportaVideo`
@@ -318,7 +318,22 @@ con failsafe de batería verificado en vuelo.
   y pimienta. El 40% restante no persiste. Medido a ojo sobre los PNG (invirtiendo la paleta),
   no dentro del proyecto: **comparar dos fechas es la función que falta y el próximo candidato
   natural** después del 2.8.
-- 2.8 ⬜ Tests y documentación
+- 2.8 ✅ Tests y documentación. **57 tests nuevos** (`test_indices.py`, `test_zonas.py`,
+  `test_mapa.py`, `test_satelite.py`), 80 en total con los del planner, todos sin red ni
+  simulador: `test_satelite.py` fabrica GeoTIFFs en UTM 21S con `tmp_path` y los lee con
+  `leer_banda`, así se prueba de verdad la ventana, la corrección de `Affine.scale` al
+  forzar `forma` y el recorte contra el polígono. Documentación: **`docs/ndvi.md`** nuevo
+  (qué es el NDVI, de dónde salen los datos, las cuatro trampas, las dos reglas de lectura,
+  las zonas, resultados de La Florida y limitaciones) y **README reescrito**, que seguía
+  describiendo el Tello y diciendo "Sprint 0 completado".
+  Dos hallazgos al escribir los tests: `satelite.py` usaba `*=` sobre un `Affine`, que tira
+  `PendingDeprecationWarning` (corregido a `@=`; rasterio lo sigue haciendo internamente,
+  eso no se puede tocar); y **el borde del recorte puede comerse hasta un píxel del lote**
+  porque la ventana se redondea a píxeles enteros — medido, el error sobre 5,23 ha es del
+  orden del 0,05%. Los dos errores de borde conocidos (este y el estiramiento del SCL)
+  quedaron con un test que fija su magnitud, para que no crezcan sin que nos enteremos.
+
+**Sprint 2 cerrado.**
 
 **Decisiones de diseño acordadas en el Sprint 2:**
 
@@ -357,12 +372,16 @@ avance concreto cuando lo hay.
 `flight/safety.py` quedó vacío porque la lógica de failsafe terminó dentro del ejecutor
 (decidir si se elimina o se le da contenido).
 
-**Limitación conocida, para el 2.8:** el recorte del SCL no queda perfectamente alineado con
-el de las bandas de color. Las dos ventanas se calculan desde el mismo bounding box en
-grados, pero se redondean a píxeles de distinto tamaño (20 m contra 10 m), así que el SCL
-cubre unos 340 x 320 m donde las bandas cubren 330 x 320. Al forzarlo a 33 x 33 queda
-estirado ~3%, o sea que la máscara de nubes puede errarle por un píxel en los bordes. Se
-arregla leyendo el SCL con los bordes exactos de la ventana del rojo en vez del bbox en
-grados.
+**Los dos errores de borde conocidos** (documentados en `docs/ndvi.md` y con un test que fija
+su magnitud en `TestAlineacionDeBandas` y `TestReproyectar`):
+
+1. **El SCL se estira ~3%.** Las ventanas de 10 m y 20 m se redondean sobre el mismo bounding
+   box en grados y no cubren lo mismo (340 x 320 m contra 330 x 320). La máscara de nubes
+   puede errarle por un píxel en los bordes. Se arregla leyendo el SCL con los bordes exactos
+   de la ventana del rojo en vez del bbox en grados.
+2. **El recorte puede comerse hasta un píxel del lote.** La ventana se redondea a píxeles
+   enteros, así que el vértice más al este de La Florida queda ~2 m afuera del último píxel.
+   Sobre 5,23 ha el error medido es del orden del 0,05%: acotado, no vale la pena arreglarlo
+   salvo que se trabaje con lotes mucho más chicos.
 
 El roadmap completo está en `PLANNING.md` sección 5.
