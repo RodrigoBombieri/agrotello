@@ -1,0 +1,171 @@
+/* Panel fijo a la izquierda, mapa ocupando el resto. La columna crece hacia abajo con
+   scroll propio, así los resultados y (en el 4.3) la telemetría entran sin pelear lugar. */
+
+:root {
+  --panel: 320px;
+  --fondo: #14181d;
+  --superficie: #1d232b;
+  --borde: #2c3540;
+  --texto: #e6eaee;
+  --tenue: #93a1af;
+  --acento: #4aa564;
+  --alerta: #d9822b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  display: grid;
+  grid-template-columns: var(--panel) 1fr;
+  height: 100vh;
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--texto);
+  background: var(--fondo);
+}
+
+#panel {
+  overflow-y: auto;
+  padding: 18px 16px 32px;
+  background: var(--fondo);
+  border-right: 1px solid var(--borde);
+}
+
+#mapa { height: 100vh; }
+
+h1 {
+  margin: 0 0 18px;
+  font-size: 17px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--acento);
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+section {
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--borde);
+}
+
+section:last-of-type { border-bottom: none; }
+
+label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+  color: var(--tenue);
+}
+
+.unidad { color: #5d6b7a; font-size: 12px; margin-left: auto; }
+
+input, select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+}
+
+label input { width: 84px; flex: none; text-align: right; }
+select { margin-bottom: 9px; }
+
+button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  border: none;
+  border-radius: 6px;
+  background: var(--acento);
+  color: #0d1114;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { filter: brightness(1.12); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+button.secundario {
+  background: var(--superficie);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  font-weight: 400;
+}
+
+.botonera { display: flex; gap: 8px; }
+.fechas { display: flex; gap: 8px; }
+.fechas label { flex: 1; flex-direction: column; align-items: stretch; gap: 3px; }
+.fechas input { width: 100%; text-align: left; }
+
+.resultado {
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 6px;
+  background: var(--superficie);
+}
+
+.dato { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.dato span:first-child { color: var(--tenue); }
+.dato b { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.zona { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.zona i { width: 11px; height: 11px; border-radius: 2px; flex: none; }
+.zona span { color: var(--tenue); flex: 1; }
+.zona b { font-variant-numeric: tabular-nums; }
+
+.escala { margin-top: 12px; }
+.barra {
+  height: 11px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #a50026, #f46d43, #fee08b, #a6d96a, #1a9850);
+}
+.extremos {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--tenue);
+  font-variant-numeric: tabular-nums;
+}
+.escala input[type=range] { width: 100%; padding: 0; margin-top: 8px; }
+
+#aviso {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #3a2a15;
+  color: var(--alerta);
+  font-size: 13px;
+}
+
+.oculto { display: none; }
+
+/* El NDVI se dibuja con un píxel por medición: ampliarlo tiene que mostrar los bloques
+   reales y no una interpolación que inventa detalle que el satélite no vio. */
+.ndvi-capa { image-rendering: pixelated; }
+
+#lectura {
+  position: fixed;
+  z-index: 1000;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(13, 17, 20, .88);
+  color: var(--texto);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.leaflet-container { background: var(--fondo); }

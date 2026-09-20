@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from dronesw.mission.planner import (
@@ -55,6 +56,7 @@ from dronesw.satelite import (
 from dronesw.vision.indices import calcular_ndvi, mascara_utilizable, resumir
 from dronesw.vision.zonas import clasificar
 
+ESTATICO = Path(__file__).parent / "estatico"
 MISIONES = Path("missions")
 NOMBRE_VALIDO = re.compile(r"[\w-]{1,64}")
 
@@ -304,3 +306,11 @@ def analizar(consulta: ConsultaNdvi) -> dict:
             for z in zonificacion.zonas
         ],
     }
+
+
+# --- La pantalla ------------------------------------------------------------
+#
+# Va al final a propósito: monta la carpeta en la raíz y atrapa todo lo que no haya
+# coincidido antes, así que tiene que declararse después de las operaciones de la API.
+
+app.mount("/", StaticFiles(directory=ESTATICO, html=True), name="pantalla")

@@ -65,9 +65,13 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
 11. Sacar una foto desde la cámara del dron en el simulador y guardarla en disco.
 12. Servir todo lo anterior por HTTP, con una página de documentación donde se prueba cada
     operación apretando botones (`python scripts/servidor.py` → `127.0.0.1:8000/docs`).
+13. **Usarse desde una pantalla** (`127.0.0.1:8000`): dibujar el lote sobre la foto
+    satelital arrastrando el mouse, guardarlo, planificar el recorrido y verlo, buscar
+    fechas de satélite, y ver el NDVI pintado encima del campo con las zonas en hectáreas,
+    la escala de colores movible y el valor de cada píxel al apuntarlo.
 
-**Todavía no puede**, y es lo que falta del Sprint 4: usarse desde una pantalla en vez de la
-terminal, definir el lote dibujándolo en un mapa, y comparar dos fechas de satélite entre sí.
+**Todavía no puede**, y es lo que falta del Sprint 4: volar desde la pantalla, y comparar dos
+fechas de satélite entre sí.
 
 **Ya no está en el plan:** capturar imágenes durante el vuelo, detectar plagas, armar el
 mosaico del lote, ni el reporte en PDF. Ver `PLANNING.md`, *Fuera de alcance*.
@@ -428,7 +432,23 @@ pantalla escribe el mismo YAML que lee la CLI, así las dos formas conviven.
   `EJEMPLO_LOTE` va en `model_config["json_schema_extra"]` y hace que `/docs` precargue el
   cuerpo de cada operación: sin eso hay que armar el JSON a mano y es la principal fricción
   para probar.
-- 4.2 ⬜ La pantalla — dibujar el lote y ver su NDVI sin tocar la terminal
+- 4.2 ✅ `src/dronesw/web/estatico/` (`index.html`, `estilo.css`, `app.js`), montado en la
+  raíz con `StaticFiles` **al final** de `servidor.py` — atrapa todo lo que no coincidió
+  antes, así que va después de la API. Panel fijo a la izquierda y mapa a la derecha
+  (**diseño elegido por él**, contra la alternativa de mapa a pantalla completa con tarjetas
+  flotantes: se eligió el panel porque no se tapa nada y en el 4.3 la telemetría entra sin
+  pelear lugar).
+  **Leaflet-Geoman, no Leaflet.draw:** el clásico no tiene commits desde 2018. El lote queda
+  con `pm.enable()`, o sea con los vértices arrastrables — dibujar a ojo sobre una foto
+  nunca sale bien a la primera. Al editarlo se borran el recorrido y el NDVI, que dependen
+  del contorno.
+  El NDVI se pinta en un `<canvas>` de un píxel por medición y se apoya con `imageOverlay`;
+  `image-rendering: pixelated` para que al ampliar se vean los bloques reales y no una
+  interpolación que inventa detalle. **Las dos barras de escala recolorean al instante sin
+  volver al servidor**, que era el objetivo de mandar números en el 4.1, y pasando el mouse
+  se lee el valor del píxel.
+  Probado por él: La Florida carga, planifica (22 wp, 2,10 km) y analiza; dibujó y guardó un
+  lote nuevo de 4,93 ha.
 - 4.3 ⬜ El vuelo en vivo — conexión, y ver al dron moverse sobre el mapa
 - 4.4 ⬜ Comparar fechas y cierre
 

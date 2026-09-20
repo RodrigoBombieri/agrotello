@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgroTello</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<aside id="panel">
+  <h1>AgroTello</h1>
+
+  <section>
+    <h2>Lote</h2>
+    <select id="lotes"><option value="">— nuevo —</option></select>
+    <div class="botonera">
+      <button id="dibujar" class="secundario">Dibujar</button>
+      <button id="borrar" class="secundario">Borrar</button>
+    </div>
+    <label>Nombre para guardar
+      <input id="nombre" type="text" placeholder="mi_lote">
+    </label>
+    <button id="guardar" class="secundario">Guardar lote</button>
+  </section>
+
+  <section>
+    <h2>Vuelo</h2>
+    <label>Altura <span class="unidad">m</span><input id="altura_m" type="number" value="80" min="1"></label>
+    <label>Separación entre pasadas <span class="unidad">m</span><input id="separacion_m" type="number" value="30" min="1"></label>
+    <label>Velocidad <span class="unidad">m/s</span><input id="velocidad_ms" type="number" value="8" min="1"></label>
+    <label>Ángulo <span class="unidad">°</span><input id="angulo_grados" type="number" value="0"></label>
+    <label>Margen del alambrado <span class="unidad">m</span><input id="margen_m" type="number" value="2" min="0"></label>
+    <button id="planificar">Planificar recorrido</button>
+    <div id="plan" class="resultado oculto"></div>
+  </section>
+
+  <section>
+    <h2>Análisis satelital</h2>
+    <div class="fechas">
+      <label>Desde<input id="desde" type="date"></label>
+      <label>Hasta<input id="hasta" type="date"></label>
+    </div>
+    <button id="buscar" class="secundario">Buscar fechas</button>
+    <select id="escenas" disabled><option value="">— sin buscar —</option></select>
+    <button id="analizar" disabled>Analizar</button>
+    <div id="analisis" class="resultado oculto"></div>
+  </section>
+
+  <p id="aviso" class="oculto"></p>
+</aside>
+
+<main id="mapa"></main>
+
+<div id="lectura" class="oculto"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
