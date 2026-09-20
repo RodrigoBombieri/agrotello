@@ -63,6 +63,8 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
     que se abre con doble clic, con la escala y sus límites impresos al costado.
 
 11. Sacar una foto desde la cámara del dron en el simulador y guardarla en disco.
+12. Servir todo lo anterior por HTTP, con una página de documentación donde se prueba cada
+    operación apretando botones (`python scripts/servidor.py` → `127.0.0.1:8000/docs`).
 
 **Todavía no puede**, y es lo que falta del Sprint 4: usarse desde una pantalla en vez de la
 terminal, definir el lote dibujándolo en un mapa, y comparar dos fechas de satélite entre sí.
@@ -188,6 +190,17 @@ Ejemplo de referencia: `src/dronesw/mission/planner.py`.
 - **Los módulos de Gazebo llevan la versión en el nombre** (`gz.transport13`,
   `gz.msgs10.image_pb2`). Fijar uno a mano se rompe al actualizar: `probar_camara.py` prueba
   una lista de candidatos con `_primero()`.
+- **JSON no admite NaN.** La especificación no lo contempla, así que los píxeles sin dato
+  del NDVI se mandan como `null` (`_grilla()` en `servidor.py`). Mandar NaN igual hace
+  fallar al navegador al interpretar la respuesta.
+- **Redondear con `np.round` sobre `float32` no alcanza:** deja el número redondeado en esa
+  precisión y al pasar a JSON reaparece la cola (`0.4909999966621399` en vez de `0.491`).
+  Hay que redondear sobre el float de Python. Corregirlo bajó la respuesta de 13 KB a 6 KB.
+- **En Pydantic, `Field(80.0, gt=0)` por posición falla; va `Field(default=80.0, gt=0)`.**
+  Lo encontró él.
+- **Nombres que vienen de afuera y terminan en una ruta de archivo hay que filtrarlos.**
+  Un lote llamado `../../algo` dejaría leer o escribir cualquier archivo de la máquina.
+  `NOMBRE_VALIDO` en `servidor.py` solo acepta letras, números, guión y guión bajo.
 - **`gz topic -e` en una tubería no muestra nada si lo matás con `timeout`**: la salida queda
   en un buffer que nunca se vacía. Usar `stdbuf -o0`, o cortar con `head` en vez de
   `timeout`.
@@ -401,7 +414,20 @@ dron, se dibuja el lote sobre la imagen satelital, y desde ahí se planifica, se
 analiza. Servidor FastAPI + una página con Leaflet; nada de framework de frontend. La
 pantalla escribe el mismo YAML que lee la CLI, así las dos formas conviven.
 
-- 4.1 ⬜ El servidor — exponer por HTTP lo que ya existe, sin pantalla
+- 4.1 ✅ `src/dronesw/web/servidor.py` (FastAPI) y `scripts/servidor.py` (lo levanta en
+  `127.0.0.1:8000`, solo local). Seis operaciones: listar / leer / guardar lotes en
+  `missions/` —el mismo YAML que lee la CLI, así las dos formas conviven—, planificar el
+  recorrido, buscar fechas de satélite y analizar una. `distancia_recorrido()` es nueva en
+  `planner.py`. Verificado: 22 waypoints y 2.104,2 m, los mismos del vuelo del Sprint 1.
+  **Decisión suya (2026-09-20): el NDVI viaja como números, no como imagen.** El servidor
+  manda la grilla reproyectada a grados (31 x 36 para La Florida, ~6 KB) y el navegador la
+  colorea. A cambio de reescribir la paleta en JavaScript se gana escala de colores
+  interactiva, leer el valor de un píxel apuntándolo, y que comparar dos fechas en el 4.4
+  se resuelva del lado del navegador. `vision/mapa.py` queda para la CLI.
+  Las entradas se validan con Pydantic; las salidas son diccionarios comunes.
+  `EJEMPLO_LOTE` va en `model_config["json_schema_extra"]` y hace que `/docs` precargue el
+  cuerpo de cada operación: sin eso hay que armar el JSON a mano y es la principal fricción
+  para probar.
 - 4.2 ⬜ La pantalla — dibujar el lote y ver su NDVI sin tocar la terminal
 - 4.3 ⬜ El vuelo en vivo — conexión, y ver al dron moverse sobre el mapa
 - 4.4 ⬜ Comparar fechas y cierre
