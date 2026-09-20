@@ -173,6 +173,30 @@ real montada en un dron real, esa cañería ya está probada.
 
 *Entregable*: una misión que aterriza dejando una carpeta de frames con coordenadas.
 
+**Pasos:**
+
+- **3.1 — Llegar a la cámara.** Levantar `gz_x500_mono_cam` y conseguir un frame en disco
+  desde Python. Es el paso incierto del sprint: la cámara publica en un tópico de Gazebo, y
+  cuál es el camino practicable hasta Python en este entorno hay que averiguarlo (bindings de
+  `gz-transport`, un plugin que grabe a disco, o `ros_gz_bridge`, que arrastraría instalar
+  ROS 2 entero). La vía de MAVSDK está descartada: PX4 todavía no expone esta cámara por
+  MAVLink. *Entregable: un PNG guardado desde el simulador.*
+
+- **3.2 — Capturar en vuelo, con posición.** El bucle de captura y el geotagging. El problema
+  de fondo es de **sincronización**: el frame y la telemetría llegan por streams distintos con
+  relojes distintos, así que hay que interpolar la posición al instante de la foto en vez de
+  tomar la última que llegó. *Entregable: una carpeta de frames y un manifiesto con
+  coordenadas.*
+
+- **3.3 — Integrarlo a la misión.** Meter la captura dentro de `EjecutorMision`, sin romper la
+  vigilancia de batería que ya corre en paralelo. Decidir el disparo: por tiempo, por
+  distancia recorrida o por waypoint alcanzado. *Entregable: `run_mission.py --capturar` deja
+  la carpeta al aterrizar — el entregable del sprint.*
+
+- **3.4 — Tests y documentación.** Igual que el 2.8: los tests no deben necesitar ni
+  simulador ni cámara, así que la interpolación y el manifiesto se prueban con telemetría
+  sintética. Más `docs/captura.md`.
+
 ### Sprint 4 — Visión: índices y detección
 
 Índices de vegetación RGB (ExG, VARI) y detector de plagas/enfermedades con YOLOv8,

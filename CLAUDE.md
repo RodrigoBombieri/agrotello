@@ -22,6 +22,10 @@ Contexto que se pierde entre sesiones. Leer esto primero al retomar el proyecto.
   GitHub funcionan de ese lado). Ruta: `~/Escritorio/Repositorio\ Git/agrotello`.
 - Responder en español, conciso y directo.
 - Va paso a paso y pide confirmación entre pasos. No adelantarse varios pasos de una.
+- **Pasos pocos y grandes, no muchos y chicos** (pedido suyo, 2026-09-19). El Sprint 2 tuvo
+  ocho y le resultó mentalmente más largo de lo que era. Apuntar a **cuatro o cinco por
+  sprint**, cada uno una unidad con sentido propio. Dentro de un paso se puede ir de a poco
+  en la conversación; lo que no conviene es la lista larga de sub-pasos numerados.
 
 ## En la primera sesión del día: qué sabe hacer el sistema (pedido suyo, desde 2026-09-16)
 
@@ -58,8 +62,10 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
 10. Dibujar ese NDVI como un mapa de colores sobre la foto satelital del campo, en una página
     que se abre con doble clic, con la escala y sus límites impresos al costado.
 
-**Todavía no puede:** comparar dos fechas entre sí, ni hacer nada con imágenes tomadas desde
-el dron, ni generar reportes.
+11. Sacar una foto desde la cámara del dron en el simulador y guardarla en disco.
+
+**Todavía no puede:** comparar dos fechas de satélite entre sí, ni capturar durante un vuelo,
+ni asociarle coordenadas a una foto, ni generar reportes.
 
 ## Antes de cada paso: describir, después codear (pedido suyo, desde 2026-09-16)
 
@@ -89,7 +95,12 @@ ahora explicando bien antes, y señalando en el resultado qué mirar y por qué.
 | Repo | Windows: `C:\Users\Rodrigo\Escritorio\Repositorio Git\agrotello` | Desde WSL: `~/agrotello` (symlink) |
 | PX4-Autopilot | Ubuntu (WSL2): `~/PX4-Autopilot` | Terminal **sin** venv |
 | venv | Ubuntu: `~/venvs/agrotello` | Fuera del repo a propósito (`/mnt/c` es lento) |
-| SITL | Se corre headless | La GUI de Gazebo se cuelga en su WSL |
+| SITL | Se corre headless | Con ventana gráfica va **el doble de lento** (ver `sim/README.md`) |
+
+El venv tiene dos ajustes que no son estándar y que hay que rehacer si se lo recrea: un
+`sistema_gz.pth` en su `site-packages` con la línea `/usr/lib/python3/dist-packages` (para
+ver los paquetes de Gazebo, que vienen por apt), y un
+`export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python` al final de `bin/activate`.
 
 Home del SITL configurado a un lote real en Gualeguaychú: `-32.695933, -58.895342`, alt 15.
 
@@ -154,6 +165,29 @@ Ejemplo de referencia: `src/dronesw/mission/planner.py`.
   exige (dos antes de cada `def` de nivel superior). Ya rompió el CI dos veces. Recordarle
   correr `black src scripts tests` después de pegar, hasta que el formateo al guardar
   funcione.
+- **En WSL2 Gazebo renderiza por software.** Headless usa EGL, y EGL no encuentra GPU porque
+  no existe `/dev/dri` (solo `/dev/dxg`). Que `glxinfo` diga "D3D12 (Intel Iris Xe)" no
+  significa nada acá: ese es el camino de OpenGL normal, no el de los sensores. Y **abrir la
+  ventana gráfica lo empeora a la mitad**, no lo mejora. Por eso la cámara va achicada (ver
+  `sim/README.md`).
+- **El venv no ve los paquetes instalados por apt.** `gz.transport13` vino de apt y vive en
+  `/usr/lib/python3/dist-packages`, que el venv ignora. Resuelto con un `.pth` dentro del
+  venv que agrega ese directorio; como los `.pth` se anexan al final, los paquetes del venv
+  siguen teniendo prioridad.
+- **Gazebo y MAVSDK piden versiones incompatibles de protobuf.** Los `_pb2.py` de Gazebo se
+  generaron con un `protoc` anterior a la 3.19, y la protobuf moderna que arrastra MAVSDK
+  (7.36 contra la 3.12 del sistema) se niega a cargarlos. Se resuelve con
+  **`PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python`**, que ya está agregado al `activate` del
+  venv. Tiene que estar en el entorno **antes de arrancar Python**: protobuf la lee una sola
+  vez al importarse, así que ponerla dentro del script solo funciona si nada importó MAVSDK
+  antes. El costo de velocidad es despreciable acá (los mensajes de MAVSDK son diminutos y lo
+  pesado de una imagen es el campo de bytes, que se copia de una).
+- **Los módulos de Gazebo llevan la versión en el nombre** (`gz.transport13`,
+  `gz.msgs10.image_pb2`). Fijar uno a mano se rompe al actualizar: `probar_camara.py` prueba
+  una lista de candidatos con `_primero()`.
+- **`gz topic -e` en una tubería no muestra nada si lo matás con `timeout`**: la salida queda
+  en un buffer que nunca se vacía. Usar `stdbuf -o0`, o cortar con `head` en vez de
+  `timeout`.
 - **El conjunto de reglas por defecto de ruff cambia entre versiones.** Pasó que el CI (con
   versiones viejas fijas) daba verde mientras su máquina (con las últimas) marcaba 8 errores.
   Resuelto declarando las reglas explícitamente en `pyproject.toml`
@@ -334,6 +368,33 @@ con failsafe de batería verificado en vuelo.
   quedaron con un test que fija su magnitud, para que no crezcan sin que nos enteremos.
 
 **Sprint 2 cerrado.**
+
+**Sprint 3 — Captura desde el dron.** En curso:
+
+- 3.1 ✅ `scripts/probar_camara.py` — se suscribe al tópico de la cámara con
+  `gz.transport13` y guarda el primer cuadro como PNG. Fue casi todo diagnóstico: el
+  simulador con cámara arrancaba a **1,5% de la velocidad real** (65× más lento). Causa: la
+  cámara de PX4 es de **1280 x 960 a 30 Hz** y en WSL2 Gazebo la renderiza **por software**,
+  porque headless usa EGL y EGL no encuentra GPU (no hay `/dev/dri`, solo `/dev/dxg`).
+  Bajándola a 320 x 240 a 5 Hz el factor sube a **0,56**, que es usable. El modelo ajustado
+  vive en `sim/mono_cam/model.sdf` con el porqué en `sim/README.md`; hay que copiarlo dentro
+  de PX4 y se pierde si PX4 se actualiza.
+  **Tópico de la cámara:**
+  `/world/default/model/x500_mono_cam_0/link/camera_link/sensor/camera/image`, tipo
+  `gz.msgs.Image`.
+  Dos hipótesis mías que salieron falsas y conviene no repetir: no había ningún `gz sim`
+  viejo colgado, y el simulador nunca estuvo trabado (el barómetro emitía perfecto, solo que
+  lentísimo). El diagnóstico que sirvió fue medir el `real_time_factor` de
+  `/world/default/stats`, no inferirlo.
+- 3.2 ⬜ Capturar en vuelo, con posición
+- 3.3 ⬜ Integrarlo a la misión
+- 3.4 ⬜ Tests y documentación
+
+**Para el 3.2:** existe `x500_mono_cam_down`, con la cámara mirando al piso. La del
+`x500_mono_cam` mira al frente, y por eso la primera foto salió con el horizonte en el
+medio. Para un relevamiento agrícola la que corresponde es la de abajo, y además simplifica
+el geoetiquetado: con la cámara apuntando al piso, el centro del cuadro cae sobre la
+posición del dron. Conviene cambiar de modelo al empezar el 3.2.
 
 **Decisiones de diseño acordadas en el Sprint 2:**
 

@@ -9,6 +9,7 @@ datasets/*
 !datasets/.gitkeep
 *.mp4
 *.pdf
+capturas/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
