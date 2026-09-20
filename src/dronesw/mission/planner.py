@@ -8,6 +8,7 @@ pasadas paralelas, yendo y viniendo como cuando se corta el pasto.
 - `cargar_mision`: lee esa definición desde un archivo YAML.
 - `_Proyeccion`: convierte entre coordenadas geográficas y metros.
 - `planificar`: genera los waypoints que cubren el lote.
+- `distancia_recorrido`: mide la longitud del trazado.
 - `_aplicar_margen`: retrae el borde para no volar pegado al alambrado.
 - `_barrido_zigzag`: arma las pasadas alternando el sentido.
 - `_cortar_pasada`: recorta una pasada contra el contorno del lote.
@@ -162,6 +163,21 @@ def planificar(mision: DefinicionMision) -> list[Waypoint]:
         area_util.area / 10_000,
     )
     return waypoints
+
+
+def distancia_recorrido(waypoints: Sequence[Waypoint]) -> float:
+    """Largo total del recorrido en metros, sumando tramo a tramo.
+
+    Proyecta los waypoints al mismo plano local que usó el planificador, así la cuenta es
+    en metros y no en grados, que no se pueden sumar entre sí.
+    """
+    if len(waypoints) < 2:
+        return 0.0
+
+    lat0 = sum(w.lat for w in waypoints) / len(waypoints)
+    lon0 = sum(w.lon for w in waypoints) / len(waypoints)
+    proy = _Proyeccion(lat0, lon0)
+    return _longitud([proy.a_metros(w.lat, w.lon) for w in waypoints])
 
 
 def _aplicar_margen(lote: Polygon, margen_m: float) -> Polygon:

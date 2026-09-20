@@ -64,8 +64,11 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
 
 11. Sacar una foto desde la cámara del dron en el simulador y guardarla en disco.
 
-**Todavía no puede:** comparar dos fechas de satélite entre sí, ni capturar durante un vuelo,
-ni asociarle coordenadas a una foto, ni generar reportes.
+**Todavía no puede**, y es lo que falta del Sprint 4: usarse desde una pantalla en vez de la
+terminal, definir el lote dibujándolo en un mapa, y comparar dos fechas de satélite entre sí.
+
+**Ya no está en el plan:** capturar imágenes durante el vuelo, detectar plagas, armar el
+mosaico del lote, ni el reporte en PDF. Ver `PLANNING.md`, *Fuera de alcance*.
 
 ## Antes de cada paso: describir, después codear (pedido suyo, desde 2026-09-16)
 
@@ -386,15 +389,35 @@ con failsafe de batería verificado en vuelo.
   viejo colgado, y el simulador nunca estuvo trabado (el barómetro emitía perfecto, solo que
   lentísimo). El diagnóstico que sirvió fue medir el `real_time_factor` de
   `/world/default/stats`, no inferirlo.
-- 3.2 ⬜ Capturar en vuelo, con posición
-- 3.3 ⬜ Integrarlo a la misión
-- 3.4 ⬜ Tests y documentación
+**Sprint 3 cortado en el 3.1 (2026-09-20), a propósito.** Los pasos 3.2 a 3.4 construían la
+cañería de captura geoetiquetada, que sirve a un dron con cámara que no existe: el mundo del
+simulador no tiene cultivo y las fotos salen de un piso gris. Se retoma si algún día hay
+hardware. (Si se retoma: usar `x500_mono_cam_down`, que mira al piso; la del `x500_mono_cam`
+mira al frente y por eso la primera foto salió con el horizonte en el medio.)
 
-**Para el 3.2:** existe `x500_mono_cam_down`, con la cámara mirando al piso. La del
-`x500_mono_cam` mira al frente, y por eso la primera foto salió con el horizonte en el
-medio. Para un relevamiento agrícola la que corresponde es la de abajo, y además simplifica
-el geoetiquetado: con la cámara apuntando al piso, el centro del cuadro cae sobre la
-posición del dron. Conviene cambiar de modelo al empezar el 3.2.
+**Sprint 4 — La aplicación. El último.** Decidido con él el 2026-09-20, y es **su** idea del
+producto, no la mía: un programa con pantalla donde se ingresan los datos de conexión del
+dron, se dibuja el lote sobre la imagen satelital, y desde ahí se planifica, se vuela y se
+analiza. Servidor FastAPI + una página con Leaflet; nada de framework de frontend. La
+pantalla escribe el mismo YAML que lee la CLI, así las dos formas conviven.
+
+- 4.1 ⬜ El servidor — exponer por HTTP lo que ya existe, sin pantalla
+- 4.2 ⬜ La pantalla — dibujar el lote y ver su NDVI sin tocar la terminal
+- 4.3 ⬜ El vuelo en vivo — conexión, y ver al dron moverse sobre el mapa
+- 4.4 ⬜ Comparar fechas y cierre
+
+El roadmap viejo de nueve sprints se recortó a esto. Lo descartado está en `PLANNING.md`
+sección 5, *Fuera de alcance*, con el motivo de cada descarte. **No reabrir esa lista.**
+
+**Contexto importante sobre el recorte (2026-09-20).** Estuvo a punto de abandonar el
+proyecto. Dos motivos que dio: le cuesta seguir el hilo, y **no lo siente suyo**. Sobre lo
+segundo le dije, y es cierto, que es en buena medida responsabilidad mía: yo escribí el
+código, hice los diagnósticos, encontré los errores y tomé las decisiones de diseño, y las
+dos correcciones que habíamos intentado solo cambiaban *cómo se las contaba*, no quién
+decidía. Lo que lo reenganchó fue que él definiera el producto. **Ese es el criterio de acá
+en más: las decisiones de qué construir son suyas; yo aporto el cómo y las consecuencias.**
+Cuando haya una bifurcación de diseño, plantearla y que elija, en vez de resolverla y
+explicarla después.
 
 **Decisiones de diseño acordadas en el Sprint 2:**
 
