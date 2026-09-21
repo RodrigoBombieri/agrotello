@@ -14,6 +14,7 @@ existen y traduce lo que devuelven.
 - `planificar_recorrido`: el zigzag que cubre un lote, con su largo y su duración.
 - `buscar_fechas`: qué pasadas del satélite hay y con cuánta nube.
 - `analizar`: el NDVI de una fecha, con sus zonas y la grilla de valores.
+- `volar`, `abortar_vuelo` y `seguir_vuelo`: lanzar la misión, cortarla, y seguirla en vivo.
 
 Técnico: las entradas se validan con Pydantic y las salidas son diccionarios comunes; la
 validación importa donde el dato viene de afuera, no donde lo produce este código. El NDVI
@@ -28,12 +29,13 @@ raíz del repo.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 
 import numpy as np
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -55,9 +57,11 @@ from dronesw.satelite import (
 )
 from dronesw.vision.indices import calcular_ndvi, mascara_utilizable, resumir
 from dronesw.vision.zonas import clasificar
+from dronesw.web.vuelo import INTERVALO_POSICION_S, SesionDeVuelo
 
 ESTATICO = Path(__file__).parent / "estatico"
 MISIONES = Path("missions")
+DIRECCION_SIMULADOR = "udpin://0.0.0.0:14540"
 NOMBRE_VALIDO = re.compile(r"[\w-]{1,64}")
 
 # La Florida, el lote real del proyecto. Sirve de ejemplo en la página de documentación.
@@ -117,6 +121,20 @@ class LoteEntrada(BaseModel):
             poligono=tuple(self.poligono),
             vuelo=ParametrosVuelo(**self.vuelo.model_dump()),
         )
+
+
+class ConsultaVuelo(BaseModel):
+    """Un lote ya planificable, más a dónde conectarse y con cuánta batería no despegar."""
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"lote": EJEMPLO_LOTE, "direccion": DIRECCION_SIMULADOR}]
+        }
+    }
+
+    lote: LoteEntrada
+    direccion: str = DIRECCION_SIMULADOR
+    bateria_minima_pct: float = Field(default=20.0, ge=0, le=100)
 
 
 class ConsultaEscenas(BaseModel):
@@ -306,6 +324,55 @@ def analizar(consulta: ConsultaNdvi) -> dict:
             for z in zonificacion.zonas
         ],
     }
+
+
+# --- Vuelo ------------------------------------------------------------------
+#
+# Hay una sola sesión por servidor: dos misiones a la vez sobre el mismo dron no tienen
+# sentido, y que el segundo intento falle con un error claro es mejor que dejarlo pasar.
+
+SESION = SesionDeVuelo()
+
+
+@app.post("/api/vuelo", summary="Planificar y volar el lote")
+async def volar(consulta: ConsultaVuelo) -> dict:
+    mision = consulta.lote.a_mision()
+    try:
+        waypoints = planificar(mision)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+    try:
+        await SESION.iniciar(
+            consulta.direccion,
+            waypoints,
+            mision.vuelo.velocidad_ms,
+            consulta.bateria_minima_pct,
+        )
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(409, str(error)) from error
+    return SESION.estado()
+
+
+@app.post("/api/vuelo/abortar", summary="Volver al punto de despegue")
+async def abortar_vuelo() -> dict:
+    try:
+        await SESION.abortar()
+    except RuntimeError as error:
+        raise HTTPException(409, str(error)) from error
+    return SESION.estado()
+
+
+@app.websocket("/api/vuelo/estado")
+async def seguir_vuelo(conexion: WebSocket) -> None:
+    """Manda el estado del vuelo dos veces por segundo mientras el navegador escuche."""
+    await conexion.accept()
+    try:
+        while True:
+            await conexion.send_json(SESION.estado())
+            await asyncio.sleep(INTERVALO_POSICION_S)
+    except WebSocketDisconnect:
+        pass
 
 
 # --- La pantalla ------------------------------------------------------------

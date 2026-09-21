@@ -17,13 +17,16 @@ dron que cumpla el protocolo. El progreso y la batería corren como tareas concu
 resueltas con `asyncio.wait(FIRST_COMPLETED)`: mirar solo el progreso dejaría una batería
 agotándose sin interrumpir nada hasta el último waypoint. Una misión abortada devuelve un
 resultado, no una excepción, porque es el sistema haciendo lo correcto.
+Acepta un `aviso` opcional que se llama en cada hito del vuelo: la línea de comandos
+no lo pasa y solo mira el log, mientras que la pantalla lo usa para mostrar el avance
+en vivo sin que el ejecutor sepa que existe una pantalla.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -81,8 +84,10 @@ class EjecutorMision:
         bateria_minima_pct: float = 20.0,
         intervalo_bateria_s: float = 2.0,
         timeout_retorno_s: float = 300.0,
+        aviso: Callable[[str, dict], None] | None = None,
     ) -> None:
         self._dron = dron
+        self._avisar = aviso or (lambda evento, datos: None)
         self._bateria_minima_pct = bateria_minima_pct
         self._intervalo_bateria_s = intervalo_bateria_s
         self._timeout_retorno_s = timeout_retorno_s
@@ -101,19 +106,25 @@ class EjecutorMision:
         self._totales = len(waypoints)
         self._alcanzados = 0
 
+        self._avisar("conectando", {})
         await self._dron.conectar()
+        self._avisar("esperando_posicion", {})
         await self._dron.esperar_posicion_valida()
 
         bateria = await self._dron.bateria_pct()
         log.info("Batería: %.0f%%", bateria)
+        self._avisar("bateria", {"pct": bateria})
         if bateria < self._bateria_minima_pct:
             return await self._resultado(
                 False, f"batería insuficiente para despegar ({bateria:.0f}%)"
             )
 
+        self._avisar("subiendo_mision", {"waypoints": len(waypoints)})
         await self._dron.subir_mision(waypoints)
         await self._dron.armar()
+        self._avisar("armado", {})
         await self._dron.iniciar_mision()
+        self._avisar("volando", {})
 
         motivo = await self._volar_vigilando()
         completada = motivo == "misión completada"
@@ -122,6 +133,7 @@ class EjecutorMision:
             # El plan se subió con retorno automático al punto de despegue, así que PX4 ya
             # está volviendo solo: solo hay que esperar a que aterrice y desarme.
             log.info("Misión terminada, esperando el retorno automático")
+            self._avisar("volviendo", {})
             if not await self._esperar_desarme(self._timeout_retorno_s):
                 # El retorno no terminó a tiempo: puede haber quedado flotando por viento,
                 # un failsafe o un home mal fijado. Se baja donde esté antes de gastar el
@@ -134,6 +146,7 @@ class EjecutorMision:
             # Ante batería baja se aterriza donde está, no se vuelve al home: el regreso
             # puede ser más largo que la carga restante.
             log.warning("Aterrizando por: %s", motivo)
+            self._avisar("aterrizando", {"motivo": motivo})
             await self._dron.aterrizar()
 
         return await self._resultado(completada, motivo)
@@ -168,6 +181,7 @@ class EjecutorMision:
             if actual > self._alcanzados:
                 self._alcanzados = actual
                 log.info("Waypoint %d/%d", actual, total)
+                self._avisar("waypoint", {"actual": actual, "total": total})
             if actual >= total:
                 return "misión completada"
         return "el stream de progreso se cortó"
@@ -175,6 +189,7 @@ class EjecutorMision:
     async def _vigilar_bateria(self) -> str:
         while True:
             pct = await self._dron.bateria_pct()
+            self._avisar("bateria", {"pct": pct})
             if pct < self._bateria_minima_pct:
                 return f"batería baja ({pct:.0f}%)"
             await asyncio.sleep(self._intervalo_bateria_s)

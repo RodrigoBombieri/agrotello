@@ -164,6 +164,15 @@ class Px4FlightController(FlightController):
         async for progreso in self._drone.mission.mission_progress():
             yield progreso.current, progreso.total
 
+    async def volver_al_despegue(self) -> None:
+        """Corta la misión y vuelve al punto de despegue.
+
+        No espera a que llegue: devuelve apenas el autopiloto acepta la orden. Quien llama
+        decide si se queda mirando el retorno o no.
+        """
+        log.warning("Vuelo abortado: volviendo al punto de despegue")
+        await self._drone.action.return_to_launch()
+
     # --- Internos ----------------------------------------------------------
 
     def _a_mission_item(self, wp: Waypoint) -> MissionItem:

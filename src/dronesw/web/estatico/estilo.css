@@ -105,6 +105,15 @@ button.secundario {
 }
 
 .botonera { display: flex; gap: 8px; }
+.confirmar { display: flex; gap: 8px; margin-top: 4px; }
+
+label.ancho { flex-direction: column; align-items: stretch; gap: 3px; }
+label.ancho input { width: 100%; text-align: left; }
+
+/* Rojo para todo lo que arranca o corta motores: que no se confunda con "analizar". */
+button.vuelo { background: #d9a13b; color: #1a1205; }
+button.peligro { background: #b4432e; color: #fff; }
+.resultado.riesgo { border: 1px solid #b4432e; }
 .fechas { display: flex; gap: 8px; }
 .fechas label { flex: 1; flex-direction: column; align-items: stretch; gap: 3px; }
 .fechas input { width: 100%; text-align: left; }
@@ -117,8 +126,8 @@ button.secundario {
 }
 
 .dato { display: flex; justify-content: space-between; margin-bottom: 5px; }
-.dato span:first-child { color: var(--tenue); }
-.dato b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.dato span:first-child { color: var(--tenue); white-space: nowrap; padding-right: 10px; }
+.dato b { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
 
 .zona { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .zona i { width: 11px; height: 11px; border-radius: 2px; flex: none; }

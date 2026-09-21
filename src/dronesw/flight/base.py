@@ -132,6 +132,14 @@ class SoportaMisionGps(Protocol):
         """Emite `(waypoint_actual, total)` a medida que avanza la misión."""
         ...
 
+    async def volver_al_despegue(self) -> None:
+        """Interrumpe lo que esté haciendo y lo manda de vuelta al punto de despegue.
+
+        Sube a una altura segura, vuelve y aterriza ahí. Es lo que se espera de un botón de
+        abortar: termina en un lugar conocido, aunque cruzando el campo y gastando batería.
+        """
+        ...
+
 
 @runtime_checkable
 class SoportaVideo(Protocol):

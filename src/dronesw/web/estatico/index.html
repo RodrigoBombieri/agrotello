@@ -35,6 +35,14 @@
     <label>Margen del alambrado <span class="unidad">m</span><input id="margen_m" type="number" value="2" min="0"></label>
     <button id="planificar">Planificar recorrido</button>
     <div id="plan" class="resultado oculto"></div>
+    <label class="ancho">Conexión del dron
+      <input id="direccion" type="text" value="udpin://0.0.0.0:14540">
+    </label>
+    <button id="volar" class="vuelo">Volar la misión</button>
+
+    <div id="confirmacion" class="resultado riesgo oculto"></div>
+    <div id="telemetria" class="resultado oculto"></div>
+    <button id="abortar" class="peligro oculto">Abortar y volver</button>
   </section>
 
   <section>

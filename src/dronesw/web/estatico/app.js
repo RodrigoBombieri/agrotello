@@ -336,3 +336,91 @@ $("hasta").value = hoy.toISOString().slice(0, 10);
 $("desde").value = haceTresMeses.toISOString().slice(0, 10);
 
 cargarLista().catch((error) => avisar(error.message));
+
+// --- Volar ------------------------------------------------------------------
+//
+// El vuelo corre en el servidor; acá solo se ordena, se mira y se corta. El estado llega
+// por WebSocket dos veces por segundo, que es suficiente para ver moverse un dron a 8 m/s.
+
+let seguimiento = null;  // el WebSocket, abierto solo mientras hay vuelo
+let marcador = null;     // dónde está el dron ahora
+let rastro = null;       // por dónde pasó de verdad, que no es lo mismo que el plan
+
+$("volar").onclick = () =>
+  intentar($("volar"), async () => {
+    if (!lote) throw new Error("Dibujá o elegí un lote primero");
+
+    // Se replanifica para que la confirmación muestre lo que se va a volar de verdad, y no
+    // lo que quedó en pantalla de un plan anterior con otros parámetros.
+    const plan = await pedir("/api/plan", cuerpoLote());
+    const minutos = Math.floor(plan.duracion_s / 60);
+
+    $("confirmacion").innerHTML =
+      "<p>Vas a armar los motores y despegar:</p>" +
+      dato("Waypoints", plan.cantidad) +
+      dato("Altura", `${$("altura_m").value} m`) +
+      dato("Recorrido", `${(plan.distancia_m / 1000).toFixed(2)} km`) +
+      dato("Duración", `~${minutos} min`) +
+      dato("Conexión", $("direccion").value) +
+      '<div class="confirmar">' +
+      '<button id="confirmar" class="peligro">Confirmar despegue</button>' +
+      '<button id="cancelar" class="secundario">Cancelar</button></div>';
+    $("confirmacion").classList.remove("oculto");
+
+    $("cancelar").onclick = () => $("confirmacion").classList.add("oculto");
+    $("confirmar").onclick = () =>
+      intentar($("confirmar"), async () => {
+        await pedir("/api/vuelo", {
+          lote: cuerpoLote(),
+          direccion: $("direccion").value,
+        });
+        $("confirmacion").classList.add("oculto");
+        abrirSeguimiento();
+      });
+  });
+
+$("abortar").onclick = () => intentar($("abortar"), () => pedir("/api/vuelo/abortar", {}));
+
+function abrirSeguimiento() {
+  if (seguimiento) seguimiento.close();
+  if (rastro) { mapa.removeLayer(rastro); rastro = null; }
+
+  seguimiento = new WebSocket(`ws://${location.host}/api/vuelo/estado`);
+  seguimiento.onmessage = (mensaje) => mostrarVuelo(JSON.parse(mensaje.data));
+  seguimiento.onerror = () => avisar("Se cortó la conexión con el servidor");
+}
+
+function mostrarVuelo(estado) {
+  const volando = ["preparando", "volando", "volviendo"].includes(estado.fase);
+
+  $("telemetria").innerHTML =
+    dato("Estado", estado.mensaje || estado.fase) +
+    (estado.waypoints ? dato("Waypoint", `${estado.waypoint} / ${estado.waypoints}`) : "") +
+    (estado.bateria_pct !== null ? dato("Batería", `${estado.bateria_pct} %`) : "") +
+    (estado.posicion ? dato("Altura", `${estado.posicion.altura_m} m`) : "");
+  $("telemetria").classList.remove("oculto");
+  $("abortar").classList.toggle("oculto", !volando);
+  $("volar").disabled = volando;
+
+  if (estado.posicion) {
+    const donde = [estado.posicion.lat, estado.posicion.lon];
+    if (!marcador) {
+      marcador = L.circleMarker(donde, {
+        radius: 7, color: "#fff", weight: 2, fillColor: "#4ea3ff", fillOpacity: 1,
+      }).addTo(mapa);
+    } else {
+      marcador.setLatLng(donde);
+    }
+  }
+
+  // El rastro va en otro color que el plan: lo interesante es ver dónde se separan.
+  if (estado.recorrido.length > 1) {
+    if (rastro) mapa.removeLayer(rastro);
+    rastro = L.polyline(estado.recorrido, { color: "#4ea3ff", weight: 3, opacity: 0.8 }).addTo(mapa);
+  }
+
+  if (estado.fase === "terminado" || estado.fase === "error") {
+    if (seguimiento) { seguimiento.close(); seguimiento = null; }
+    if (estado.fase === "error") avisar(estado.mensaje);
+  }
+}

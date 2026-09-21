@@ -70,8 +70,12 @@ una línea de en qué paso estamos. Si un día ya hubo conversación, no repetir
     fechas de satélite, y ver el NDVI pintado encima del campo con las zonas en hectáreas,
     la escala de colores movible y el valor de cada píxel al apuntarlo.
 
-**Todavía no puede**, y es lo que falta del Sprint 4: volar desde la pantalla, y comparar dos
-fechas de satélite entre sí.
+14. **Volar desde la pantalla**: ingresar la dirección de conexión del dron, confirmar el
+    despegue viendo lo que está por pasar, seguir el vuelo en vivo sobre el mapa —posición,
+    batería, waypoint— y abortarlo, con retorno automático al punto de despegue.
+
+**Todavía no puede**, y es lo único que falta del Sprint 4: comparar dos fechas de satélite
+entre sí.
 
 **Ya no está en el plan:** capturar imágenes durante el vuelo, detectar plagas, armar el
 mosaico del lote, ni el reporte en PDF. Ver `PLANNING.md`, *Fuera de alcance*.
@@ -449,7 +453,22 @@ pantalla escribe el mismo YAML que lee la CLI, así las dos formas conviven.
   se lee el valor del píxel.
   Probado por él: La Florida carga, planifica (22 wp, 2,10 km) y analiza; dibujó y guardó un
   lote nuevo de 4,93 ha.
-- 4.3 ⬜ El vuelo en vivo — conexión, y ver al dron moverse sobre el mapa
+- 4.3 ✅ `src/dronesw/web/vuelo.py` (nuevo: `SesionDeVuelo`), tres operaciones más en
+  `servidor.py` (`POST /api/vuelo`, `POST /api/vuelo/abortar`, WebSocket
+  `/api/vuelo/estado`) y el panel de vuelo en la pantalla.
+  **El `EjecutorMision` no se reescribió:** ganó un `aviso` opcional que se llama en cada
+  hito. La CLI no lo pasa y sigue igual; la pantalla lo usa para el avance en vivo. La
+  posición se sondea aparte, porque el ejecutor no la mira.
+  **Abortar = volver al punto de despegue (decisión suya).** Se agregó
+  `volver_al_despegue()` al protocolo y a `Px4FlightController`. Abortar **no** corta el
+  seguimiento de posición: el dron sigue volando y es cuando más se quiere mirar.
+  Dos cosas puestas sin preguntar, y aceptadas: confirmación con resumen antes de armar, y
+  botón de abortar siempre visible durante el vuelo.
+  **Probado contra el SITL:** voló hasta el waypoint 7/22 y el abortar lo trajo de vuelta y
+  lo desarmó con 94% de batería.
+  Color: **rojo solo para lo que arranca o corta motores** (confirmar y abortar); "Volar la
+  misión" va en ámbar, porque solo abre la confirmación. Lo notó él: dos botones rojos que
+  hacen cosas opuestas es lo que no se quiere tener en una emergencia.
 - 4.4 ⬜ Comparar fechas y cierre
 
 El roadmap viejo de nueve sprints se recortó a esto. Lo descartado está en `PLANNING.md`
