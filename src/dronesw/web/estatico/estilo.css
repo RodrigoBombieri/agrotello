@@ -159,6 +159,8 @@ button.peligro { background: #b4432e; color: #fff; }
   font-size: 13px;
 }
 
+.nota { margin: 10px 0 0; color: var(--tenue); font-size: 13px; line-height: 1.4; }
+
 .oculto { display: none; }
 
 /* El NDVI se dibuja con un píxel por medición: ampliarlo tiene que mostrar los bloques

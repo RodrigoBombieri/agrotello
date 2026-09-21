@@ -469,7 +469,28 @@ pantalla escribe el mismo YAML que lee la CLI, así las dos formas conviven.
   Color: **rojo solo para lo que arranca o corta motores** (confirmar y abortar); "Volar la
   misión" va en ámbar, porque solo abre la confirmación. Lo notó él: dos botones rojos que
   hacen cosas opuestas es lo que no se quiere tener en una emergencia.
-- 4.4 ⬜ Comparar fechas y cierre
+- 4.4 ✅ `src/dronesw/vision/comparar.py` (nuevo), `POST /api/comparar`, la vista en la
+  pantalla, `tests/unit/test_comparar.py` (13 tests, **93 en total**), `docs/aplicacion.md`
+  nuevo, sección de comparación en `docs/ndvi.md` y README reescrito con capturas.
+  **Decisión suya: mapa de persistencia, no de diferencia.** Marca lo que sale flojo (o
+  vigoroso) en las dos fechas. Se descartó el mapa de diferencia porque con dos fechas es
+  mayormente ruido.
+  **La clave del método:** cada fecha se ordena **contra sí misma** (su propio tercio más
+  flojo) y después se cruzan los rankings. Por eso funciona a través de las estaciones —en
+  primavera sube todo el lote y con umbrales fijos no habría zona floja— y por eso es
+  **inmune al problema de la escala estirada** que arrastrábamos del 2.7. Esa última
+  consecuencia la vi recién al escribirlo; la escala compartida que había prometido no hizo
+  falta.
+  Se informa siempre `hectareas_por_azar` (un tercio de un tercio = 11%): sin esa vara el
+  número de hectáreas no se puede interpretar.
+  **Contra mi decisión del 4.1, el cálculo va en Python y no en el navegador**, porque la
+  comparación no es interactiva y en JavaScript quedaría sin tests. `_ndvi_de()` se extrajo
+  de `analizar` para no escribir dos veces el camino hasta el NDVI.
+  **Resultados suyos:** 19/09 contra 16/09 (tres días) dio **r = 0,98** — eso no mide
+  persistencia sino **repetibilidad**, y de paso descartó la sospecha sobre el 19/09, que
+  tenía 54% de nube en el catálogo. Contra fechas separadas por semanas da r ≈ 0,51.
+
+**Sprint 4 cerrado. El proyecto está terminado.**
 
 El roadmap viejo de nueve sprints se recortó a esto. Lo descartado está en `PLANNING.md`
 sección 5, *Fuera de alcance*, con el motivo de cada descarte. **No reabrir esa lista.**

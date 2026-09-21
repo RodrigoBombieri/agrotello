@@ -115,7 +115,10 @@ function limpiarDerivados() {
   $("plan").classList.add("oculto");
   $("analisis").classList.add("oculto");
   $("escenas").disabled = true;
+  $("escenas2").disabled = true;
   $("analizar").disabled = true;
+  $("comparar").disabled = true;
+  $("comparacion").classList.add("oculto");
 }
 
 mapa.on("pm:create", (e) => ponerLote(e.layer));
@@ -199,14 +202,27 @@ $("buscar").onclick = () =>
       select.innerHTML = '<option value="">— no hay pasadas —</option>';
       return;
     }
-    escenas.reverse().forEach((e) => {
-      const opcion = document.createElement("option");
-      opcion.value = e.fecha;
-      opcion.textContent = `${e.fecha} — ${e.nube_pct}% de nube`;
-      select.appendChild(opcion);
+    const listas = [$("escenas"), $("escenas2")];
+    listas.forEach((l) => (l.innerHTML = ""));
+    if (!escenas.length) {
+      listas.forEach((l) => (l.innerHTML = '<option value="">— no hay pasadas —</option>'));
+      return;
+    }
+
+    escenas.reverse().forEach((e, i) => {
+      listas.forEach((lista) => {
+        const opcion = document.createElement("option");
+        opcion.value = e.fecha;
+        opcion.textContent = `${e.fecha} — ${e.nube_pct}% de nube`;
+        lista.appendChild(opcion);
+      });
+      // La segunda lista arranca en una fecha distinta: comparar algo consigo mismo no dice nada.
+      if (i === 1) $("escenas2").value = e.fecha;
     });
-    select.disabled = false;
+
+    listas.forEach((l) => (l.disabled = false));
     $("analizar").disabled = false;
+    $("comparar").disabled = escenas.length < 2;
   });
 
 $("analizar").onclick = () =>
@@ -423,4 +439,81 @@ function mostrarVuelo(estado) {
     if (seguimiento) { seguimiento.close(); seguimiento = null; }
     if (estado.fase === "error") avisar(estado.mensaje);
   }
+}
+
+
+// --- Comparar dos fechas ----------------------------------------------------
+//
+// El cruce lo hace el servidor: no es interactivo, se calcula una vez y se mira, así que
+// conviene que viva donde tiene tests. Acá solo se pinta el resultado.
+
+const COLOR_PERSISTENCIA = {
+  1: [180, 67, 46],   // flojo en las dos fechas
+  2: [26, 152, 80],   // vigoroso en las dos
+  0: [150, 150, 150], // sin coincidencia
+};
+
+$("comparar").onclick = () =>
+  intentar($("comparar"), async () => {
+    const cruce = await pedir("/api/comparar", {
+      lote: cuerpoLote(),
+      primera: $("escenas").value,
+      segunda: $("escenas2").value,
+    });
+
+    // Reemplaza al NDVI de una fecha: son dos lecturas distintas del mismo campo y
+    // superpuestas no se entiende ninguna.
+    if (capaNdvi) mapa.removeLayer(capaNdvi);
+    const b = cruce.bordes;
+    capaNdvi = L.imageOverlay(
+      lienzoDePersistencia(cruce.etiquetas),
+      [[b.sur, b.oeste], [b.norte, b.este]],
+      { className: "ndvi-capa" }
+    ).addTo(mapa);
+
+    analisis = null;  // el valor bajo el mouse ya no corresponde a este dibujo
+    mostrarComparacion(cruce);
+  });
+
+function lienzoDePersistencia(etiquetas) {
+  const alto = etiquetas.length;
+  const ancho = etiquetas[0].length;
+  const lienzo = document.createElement("canvas");
+  lienzo.width = ancho;
+  lienzo.height = alto;
+
+  const contexto = lienzo.getContext("2d");
+  const imagen = contexto.createImageData(ancho, alto);
+  for (let fila = 0; fila < alto; fila++) {
+    for (let columna = 0; columna < ancho; columna++) {
+      const etiqueta = etiquetas[fila][columna];
+      const i = (fila * ancho + columna) * 4;
+      if (etiqueta === null) continue; // fuera del lote o sin dato en alguna fecha
+      const [r, g, azul] = COLOR_PERSISTENCIA[etiqueta];
+      imagen.data[i] = r;
+      imagen.data[i + 1] = g;
+      imagen.data[i + 2] = azul;
+      imagen.data[i + 3] = etiqueta === 0 ? 70 : 230;
+    }
+  }
+  contexto.putImageData(imagen, 0, 0);
+  return lienzo.toDataURL();
+}
+
+function mostrarComparacion(cruce) {
+  const veredicto =
+    cruce.hectareas_flojas > cruce.hectareas_por_azar * 1.5
+      ? "El patrón se repite: es del campo, no de la imagen."
+      : "Las dos fechas casi no coinciden: por ahora no hay patrón que seguir.";
+
+  $("comparacion").innerHTML =
+    dato("Fechas", `${cruce.primera} y ${cruce.segunda}`) +
+    `<div class="zona"><i style="background:#b4432e"></i>` +
+    `<span>flojo en las dos</span><b>${cruce.hectareas_flojas.toFixed(2)} ha</b></div>` +
+    `<div class="zona"><i style="background:#1a9850"></i>` +
+    `<span>vigoroso en las dos</span><b>${cruce.hectareas_vigorosas.toFixed(2)} ha</b></div>` +
+    dato("El azar daría", `${cruce.hectareas_por_azar.toFixed(2)} ha`) +
+    dato("Correlación", cruce.correlacion.toFixed(2)) +
+    `<p class="nota">${veredicto}</p>`;
+  $("comparacion").classList.remove("oculto");
 }

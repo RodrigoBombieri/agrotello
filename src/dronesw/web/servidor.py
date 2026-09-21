@@ -15,6 +15,9 @@ existen y traduce lo que devuelven.
 - `buscar_fechas`: qué pasadas del satélite hay y con cuánta nube.
 - `analizar`: el NDVI de una fecha, con sus zonas y la grilla de valores.
 - `volar`, `abortar_vuelo` y `seguir_vuelo`: lanzar la misión, cortarla, y seguirla en vivo.
+- `_ndvi_de`: el camino completo hasta el NDVI de una fecha, que usan el análisis y la comparación.
+- `analizar`: el NDVI de una fecha, con sus zonas y la grilla de valores.
+- `comparar`: qué sectores salen flojos (o vigorosos) en dos fechas a la vez.
 
 Técnico: las entradas se validan con Pydantic y las salidas son diccionarios comunes; la
 validación importa donde el dato viene de afuera, no donde lo produce este código. El NDVI
@@ -55,6 +58,7 @@ from dronesw.satelite import (
     mascara_del_lote,
     reproyectar_a_grados,
 )
+from dronesw.vision.comparar import persistencia
 from dronesw.vision.indices import calcular_ndvi, mascara_utilizable, resumir
 from dronesw.vision.zonas import clasificar
 from dronesw.web.vuelo import INTERVALO_POSICION_S, SesionDeVuelo
@@ -156,6 +160,18 @@ class ConsultaNdvi(BaseModel):
 
     lote: LoteEntrada
     fecha: str
+
+
+class ConsultaComparacion(BaseModel):
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"lote": EJEMPLO_LOTE, "primera": "2026-08-07", "segunda": "2026-08-30"}]
+        }
+    }
+
+    lote: LoteEntrada
+    primera: str
+    segunda: str
 
 
 # --- Ayudantes --------------------------------------------------------------
@@ -272,9 +288,31 @@ def buscar_fechas(consulta: ConsultaEscenas) -> list[dict]:
     ]
 
 
+def _ndvi_de(mision: DefinicionMision, fecha: str) -> tuple[np.ndarray, np.ndarray, dict, str]:
+    """Trae el NDVI del lote en una fecha: la matriz, la máscara del campo, y de dónde salió.
+
+    Es el mismo camino que usan el análisis de una fecha y la comparación de dos, así que
+    vive acá en vez de estar escrito dos veces.
+    """
+    escenas = buscar_escenas(mision, fecha, fecha)
+    if not escenas:
+        raise HTTPException(404, f"No hay ninguna escena del {fecha} sobre el lote")
+
+    escena = escenas[0]
+    rojo, info = leer_banda(escena.assets[BANDA_ROJO].href, mision)
+    infrarrojo, _ = leer_banda(escena.assets[BANDA_INFRARROJO].href, mision)
+    clasificacion, _ = leer_banda(escena.assets[BANDA_CLASIFICACION].href, mision, forma=rojo.shape)
+
+    dentro = mascara_del_lote(mision, info["crs"], info["transformacion"], rojo.shape)
+    ndvi = calcular_ndvi(rojo, infrarrojo, mascara=mascara_utilizable(clasificacion) & dentro)
+    return ndvi, dentro, info, escena.id
+
+
 @app.post("/api/ndvi", summary="El NDVI del lote en una fecha, con sus zonas")
 def analizar(consulta: ConsultaNdvi) -> dict:
     mision = consulta.lote.a_mision()
+    ndvi, dentro, info, _ = _ndvi_de(mision, consulta.fecha)
+    resumen = resumir(ndvi, dentro=dentro)
     escenas = buscar_escenas(mision, consulta.fecha, consulta.fecha)
     if not escenas:
         raise HTTPException(404, f"No hay ninguna escena del {consulta.fecha} sobre el lote")
@@ -293,7 +331,7 @@ def analizar(consulta: ConsultaNdvi) -> dict:
     oeste, sur, este, norte = bordes
 
     return {
-        "fecha": escena.datetime.strftime("%Y-%m-%d") if escena.datetime else consulta.fecha,
+        "fecha": consulta.fecha,
         "escena": escena.id,
         "bordes": {"oeste": oeste, "sur": sur, "este": este, "norte": norte},
         "valores": _grilla(grados),
@@ -323,6 +361,37 @@ def analizar(consulta: ConsultaNdvi) -> dict:
             }
             for z in zonificacion.zonas
         ],
+    }
+
+
+@app.post("/api/comparar", summary="Qué sectores se repiten entre dos fechas")
+def comparar(consulta: ConsultaComparacion) -> dict:
+    """Cruza dos fechas y devuelve el mapa de lo que coincide, listo para dibujar."""
+    mision = consulta.lote.a_mision()
+    primera, _, info, _ = _ndvi_de(mision, consulta.primera)
+    segunda, _, _, _ = _ndvi_de(mision, consulta.segunda)
+
+    try:
+        cruce = persistencia(primera, segunda)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+    # Las etiquetas se reproyectan como números y se vuelven a redondear: son categorías,
+    # así que se remuestrean con vecino más cercano y nunca se promedian.
+    como_float = np.where(cruce.etiquetas < 0, np.nan, cruce.etiquetas).astype("float32")
+    grados, bordes = reproyectar_a_grados(como_float, info["crs"], info["transformacion"])
+    oeste, sur, este, norte = bordes
+
+    return {
+        "primera": consulta.primera,
+        "segunda": consulta.segunda,
+        "bordes": {"oeste": oeste, "sur": sur, "este": este, "norte": norte},
+        "etiquetas": [[None if np.isnan(v) else round(float(v)) for v in fila] for fila in grados],
+        "hectareas_flojas": round(cruce.hectareas_flojas, 2),
+        "hectareas_vigorosas": round(cruce.hectareas_vigorosas, 2),
+        "hectareas_comparables": round(cruce.hectareas_comparables, 2),
+        "hectareas_por_azar": round(cruce.hectareas_por_azar, 2),
+        "correlacion": round(cruce.correlacion, 2),
     }
 
 

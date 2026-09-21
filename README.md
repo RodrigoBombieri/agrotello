@@ -1,84 +1,89 @@
 # AgroTello
 
-Inspección agronómica autónoma: planifica un relevamiento sobre un lote real, lo vuela solo,
-analiza la salud del cultivo y produce un mapa georreferenciado de dónde anda bien y dónde
-no.
+Dibujás un lote sobre la foto satelital, el software calcula el recorrido que lo cubre, hace
+volar el dron solo, y te dice **en hectáreas** dónde el cultivo anda flojo y dónde bien.
 
-Dos frentes que avanzan en paralelo y terminan encontrándose:
+![Mapa de NDVI sobre el lote](docs/img/pantalla.png)
 
-- **Vuelo** → PX4 + MAVSDK-Python sobre el simulador SITL. Planifica el recorrido que cubre
-  un lote y lo ejecuta con vigilancia de batería.
-- **Análisis** → NDVI de Sentinel-2, gratis y sin hardware, sobre el mismo lote que vuela el
-  simulador.
+---
 
-Ver `PLANNING.md` para la arquitectura y el roadmap por sprints, `docs/herramientas.md` para
-el stack y cómo fluyen los datos, y `docs/comandos.md` para la convención de terminales.
+## Qué hace
 
-## Qué hace hoy
+**Planifica y vuela.** Del contorno del lote saca el recorrido en zigzag que lo cubre y lo
+vuela de punta a punta: despega, recorre los waypoints, vuelve y aterriza. Vigila la batería
+y aborta si no alcanza. Se sigue en vivo sobre el mapa y se puede cortar en cualquier
+momento, con retorno automático al punto de despegue.
 
-1. Define un lote en un archivo de texto: contorno en coordenadas y parámetros de vuelo
-   (altura, separación entre pasadas, velocidad, orientación, margen del alambrado).
-2. Calcula el recorrido en zigzag que lo cubre, recortado contra su forma real.
-3. Lo vuela solo en el simulador: despega, recorre los waypoints, vuelve y aterriza,
-   abortando si la batería no alcanza.
-4. Le pregunta al catálogo de Sentinel-2 qué imágenes hay del lote y con cuánta nube.
-5. Baja únicamente el recorte del campo, sin descargar la escena de un gigabyte.
-6. Calcula el NDVI descartando nubes, sombras y lo que queda fuera del alambrado.
-7. Separa el lote en zona floja, normal y vigorosa, cada una medida en hectáreas.
-8. Dibuja todo eso como un mapa sobre la foto satelital, en una página que se abre con doble
-   clic.
+![Vuelo en curso](docs/img/pantalla1.png)
+*El plan en amarillo, el recorrido real en azul. Acá se abortó en el waypoint 7 de 22.*
 
-**Todavía no:** comparar dos fechas entre sí, procesar imágenes tomadas desde el dron, ni
-generar reportes.
+**Mide el cultivo con imágenes de Sentinel-2.** Baja únicamente el recorte del campo —33 × 33
+píxeles de una escena de 120 millones—, calcula el NDVI descartando nubes y sombras, lo
+recorta contra el alambrado y lo separa en zona floja, normal y vigorosa.
 
-## Setup
+**Compara dos fechas** y marca solo lo que se repite en las dos, que es lo que distingue un
+problema de fondo del campo de un mal día de la imagen.
 
-El entorno corre sobre WSL2/Ubuntu: el simulador PX4 no se ejecuta nativo en Windows. Ver
-`docs/sitl_setup.md` para levantar el simulador.
+![Comparación entre dos fechas](docs/img/pantalla2.png)
+*Rojo: flojo en las dos fechas. Verde: vigoroso en las dos. Al lado, cuánto daría el azar.*
+
+## El resultado
+
+Sobre un lote real de 5,23 ha en Gualeguaychú, con datos de 2026:
+
+- El cultivo creció de **0,48 a 0,63** de NDVI medio entre julio y agosto.
+- Hay **1,05 ha que salen flojas en dos fechas distintas**, en una mancha contigua. El azar
+  daría 0,58. Eso es un sector al que ir a caminar.
+- Dos pasadas del satélite separadas por tres días coinciden con **r = 0,98**: la medición
+  es repetible.
+
+## Cómo se usa
+
+Corre sobre WSL2/Ubuntu — el simulador de PX4 no anda nativo en Windows. Ver
+[`docs/sitl_setup.md`](docs/sitl_setup.md).
 
 ```bash
-python3 -m venv ~/venvs/agrotello        # el venv vive fuera del repo, a propósito
+python3 -m venv ~/venvs/agrotello
 source ~/venvs/agrotello/bin/activate
-pip install -e .                          # instala el paquete y sus dependencias
+pip install -e .
+
+python scripts/servidor.py        # http://127.0.0.1:8000
 ```
 
-Sin `pip install -e .` los scripts no encuentran `dronesw`.
+Para volar hace falta el simulador corriendo, o un dron PX4 del otro lado. El análisis
+satelital funciona solo, sin nada más.
 
-## Uso
-
-**Planificar y volar** — con el simulador corriendo (`HEADLESS=1 make px4_sitl gz_x500`
-desde `~/PX4-Autopilot`):
+También se puede usar por línea de comandos, sobre los mismos archivos de lote:
 
 ```bash
-python scripts/run_mission.py missions/lote_prueba.yaml --solo-plan --geojson  # solo planifica
-python scripts/run_mission.py missions/lote_prueba.yaml                        # planifica y vuela
-python scripts/sprint0_hover.py                                                # vuelo de prueba
-```
-
-El recorrido queda en `mapas/` y se ve arrastrándolo a geojson.io. Ver
-`docs/mission_format.md` para el formato del lote.
-
-**Analizar el cultivo** — no necesita simulador ni internet más allá del catálogo:
-
-```bash
-python scripts/buscar_escenas.py missions/lote_prueba.yaml --desde 2026-07-01 --hasta 2026-09-15
+python scripts/run_mission.py missions/lote_prueba.yaml
 python scripts/ndvi_lote.py missions/lote_prueba.yaml --fecha 2026-08-30 --mapa
 ```
 
-El mapa queda en `mapas/ndvi_AAAAMMDD.html`. Ver `docs/ndvi.md` para qué significan los
-números, las trampas del dato satelital y cómo leer los resultados.
+## Sobre el hardware
 
-## Estado
+**Listo para conectarse a un dron real, pero sin probar en uno.** La capa de vuelo pasa por
+una interfaz abstracta y el backend de PX4 se conecta con una cadena de texto:
+`udpin://0.0.0.0:14540` apunta al simulador y `serial:///dev/ttyUSB0:57600` apuntaría a una
+radio. El protocolo es el mismo; lo que el simulador no ejercita es el viento, la calidad de
+GPS, la latencia del enlace y la regulación.
 
-- **Sprint 0 — cerrado.** Entorno, PX4 volando en SITL, failsafe de batería verificado en
-  vuelo.
-- **Sprint 1 — cerrado.** Formato de misión, `FlightController`, planificador de waypoints
-  con Shapely, ejecutor con vigilancia de batería. Misión de 22 waypoints volada sobre un
-  lote real de 5,23 ha.
-- **Sprint 2 — cerrado.** NDVI satelital: catálogo, lectura por rangos de bytes, máscara de
-  nubes, recorte al polígono, zonas de vigor y mapa.
+El análisis satelital, en cambio, no necesita hardware: mide un campo real, hoy.
 
-Próximo: Sprint 3 — captura de imágenes desde el simulador. Ver `PLANNING.md` sección 5.
+## Stack
+
+PX4 SITL + MAVSDK para el vuelo · Shapely para la geometría · Sentinel-2 vía STAC y COGs
+para las imágenes · NumPy y rasterio para el análisis · FastAPI + Leaflet para la
+aplicación.
+
+## Documentación
+
+| | |
+|---|---|
+| [`docs/aplicacion.md`](docs/aplicacion.md) | La pantalla, la conexión del dron y las decisiones de diseño |
+| [`docs/ndvi.md`](docs/ndvi.md) | Qué mide el NDVI, sus trampas y cómo leer los resultados |
+| [`docs/mission_format.md`](docs/mission_format.md) | El formato del lote y cómo elegir los parámetros |
+| [`PLANNING.md`](PLANNING.md) | Arquitectura, roadmap y qué quedó fuera de alcance |
 
 ## Tests
 
@@ -86,10 +91,8 @@ Próximo: Sprint 3 — captura de imágenes desde el simulador. Ver `PLANNING.md
 pytest
 ```
 
-Todo lo que se puede probar sin dron, sin simulador y sin internet: la geometría del
-planificador, la aritmética del NDVI, las zonas, el coloreado del mapa y el recorte
-satelital (contra imágenes fabricadas en el momento).
+93 pruebas. Ninguna necesita red, simulador ni dron.
 
-## Datos
+---
 
 Contiene información Copernicus Sentinel modificada, 2026.

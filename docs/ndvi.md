@@ -99,8 +99,8 @@ tapado. Por debajo del **80% de cobertura** la fecha se descarta.
 entre los percentiles 2 y 98 *de esa fecha*, porque con una escala fija 0–1 un cultivo
 implantado sale todo del mismo verde. La contra es que "verde oscuro" significa un valor
 distinto en cada mapa: dos fechas lado a lado se ven parecidas aunque no lo sean. Por eso la
-página imprime su propia escala y lo advierte. **Para comparar fechas hay que fijar la
-escala**, y esa función todavía no existe.
+página imprime su propia escala y lo advierte. Para comparar fechas hay otro camino, que no
+depende de la escala: el cruce de persistencia, más abajo.
 
 ## Las zonas de vigor
 
@@ -119,6 +119,34 @@ desvío, las zonas están separando ruido y el programa lo dice.
 **Consecuencia importante:** como los cortes son relativos a cada fecha, **las hectáreas por
 zona no se comparan entre fechas** — siempre van a dar cerca de un tercio. Lo que sí
 significa algo es si la zona floja cae en el mismo lugar del campo.
+
+## Comparar dos fechas
+
+Una sola medición no distingue un problema de fondo de un mal día de la imagen. Dos sí: si
+un sector sale flojo en dos pasadas separadas por semanas, es del campo.
+
+El cruce **ordena cada fecha contra sí misma** —el tercio más flojo *de esa fecha*, no un
+umbral fijo— y después cruza los dos rankings. Esa elección es la que lo hace funcionar a
+través de las estaciones: en primavera todo el lote sube de NDVI, y con umbrales fijos la
+fecha alta no tendría zona floja y la comparación no diría nada. Con rankings, julio y
+agosto se comparan sin problema.
+
+Y como no compara colores sino puestos, **el cruce es inmune al problema de la escala
+estirada** que afecta a los mapas de una sola fecha.
+
+**Siempre se informa cuánta superficie daría el azar.** Si las dos fechas no tuvieran
+relación, coincidiría un tercio de un tercio: el **11% del lote**. Esa es la vara.
+
+| Resultado | Cómo leerlo |
+|---|---|
+| Cerca del 11% | No hay patrón. Las diferencias son ruido de medición. |
+| El doble o más | Hay algo del campo ahí: suelo, drenaje, un bajo. |
+
+Sobre La Florida, cruzando el 07/08 con el 30/08, dio **1,05 ha flojas en las dos fechas**
+contra 0,58 que daría el azar, y en una mancha contigua — el ruido daría sal y pimienta
+desparramada. La correlación píxel a píxel fue r = 0,51.
+
+**Dos fechas no son una tendencia.** Con más pasadas el patrón se afina o se cae.
 
 ## Cómo correrlo
 
@@ -173,7 +201,5 @@ fechas**, en una mancha contigua, que es el primer candidato concreto a ir a cam
 - **El borde del recorte puede comerse hasta un píxel del lote.** La ventana se redondea a
   píxeles enteros, así que el extremo del campo puede quedar afuera por unos metros. Sobre
   5,23 ha el error medido es del orden del 0,05%.
-- **No se comparan dos fechas.** Es la función que falta para que las zonas signifiquen algo
-  en el tiempo.
 - **Una nube fina no siempre la marca el SCL.** Si una fecha da un valor raro y la cobertura
   dice 100%, vale mirar la imagen antes de creerle.

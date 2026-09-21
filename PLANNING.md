@@ -36,7 +36,7 @@ podría hacer NDVI. El objetivo de hardware pasó a ser un **dron PX4** (Holybro
 
 **El sistema queda listo para conectarse a un dron real, pero sin probar en uno.** La capa de
 vuelo pasa por la interfaz `FlightController` y el backend de PX4 se conecta con una cadena de
-texto: `udp://:14540` apunta al simulador y `serial:///dev/ttyUSB0:57600` apuntaría a una
+texto: `udpin://0.0.0.0:14540` apunta al simulador y `serial:///dev/ttyUSB0:57600` apuntaría a una
 radio. El protocolo es el mismo. Lo que el simulador no ejercita es todo lo demás: latencia
 del enlace, calidad de GPS, viento, geofence, regulación.
 
@@ -113,10 +113,14 @@ agrotello/
 │   ├── vision/
 │   │   ├── indices.py               # NDVI y máscara de nubes
 │   │   ├── zonas.py                 # zonas de vigor en hectáreas
-│   │   └── mapa.py                  # PNG + página con el mapa
-│   └── web/                         # ⬜ Sprint 4: servidor y pantalla
+│   │   ├── mapa.py                  # PNG + página con el mapa
+│   │   └── comparar.py              # cruce de persistencia entre dos fechas
+│   └── web/
+│       ├── servidor.py              # FastAPI: la API y la pantalla
+│       ├── vuelo.py                 # la sesión de vuelo en vivo
+│       └── estatico/                # index.html, estilo.css, app.js
 ├── scripts/                         # entradas de línea de comandos
-└── tests/unit/                      # 80 tests, sin red ni simulador
+└── tests/unit/                      # 93 tests, sin red ni simulador
 ```
 
 ## 4. Stack técnico
@@ -134,8 +138,8 @@ agrotello/
 | Cámara del simulador | `gz_x500_mono_cam` + gz-transport | ✅ leída (Sprint 3 cortado ahí) |
 | Tests | pytest | ✅ en uso |
 | Lint y formato | ruff + black, en GitHub Actions | ✅ en uso |
-| Servidor de la aplicación | FastAPI + WebSocket | ⬜ Sprint 4 |
-| Pantalla | HTML + Leaflet, sin framework | ⬜ Sprint 4 |
+| Servidor de la aplicación | FastAPI + WebSocket | ✅ en uso |
+| Pantalla | HTML + Leaflet-Geoman, sin framework | ✅ en uso |
 
 Las dependencias de runtime se declaran en `pyproject.toml`, y se van sumando a medida que
 los módulos las usan de verdad.
@@ -187,7 +191,7 @@ Lo que sí dejó, y queda: el modelo de cámara ajustado para que el simulador s
 WSL2 (`sim/`), y el entorno destrabado —protobuf, venv, renderizado— documentado en
 `CLAUDE.md`.
 
-### Sprint 4 — La aplicación 🎯 *(el último)*
+### Sprint 4 — La aplicación ✅ *(cerrado 2026-09-21)*
 
 Hoy el sistema funciona por línea de comandos, con el lote definido en un YAML escrito a
 mano, y los resultados desparramados entre un GeoJSON, una página HTML y texto de terminal.
@@ -202,22 +206,23 @@ el mapa (Leaflet, que ya se usa en los mapas de NDVI) y el aspecto; Python sigue
 todo lo que ya hace. **Nada de lo construido se tira:** la pantalla escribe el mismo YAML que
 lee la línea de comandos, así que las dos formas de usarlo conviven.
 
-- **4.1 — El servidor.** Exponer por HTTP lo que ya existe: planificar un recorrido, buscar
+- **4.1 ✅ El servidor.** Exponer por HTTP lo que ya existe: planificar un recorrido, buscar
   qué fechas de satélite hay, analizar un lote. Sin pantalla todavía.
   *Entregable: los endpoints responden desde el navegador.*
 
-- **4.2 — La pantalla.** El mapa sobre la imagen satelital, dibujar el lote encima, los
+- **4.2 ✅ La pantalla.** El mapa sobre la imagen satelital, dibujar el lote encima, los
   parámetros de vuelo al costado, y los resultados del análisis al otro.
   *Entregable: dibujar un lote y ver su NDVI y sus zonas sin tocar la terminal.*
 
-- **4.3 — El vuelo en vivo.** Los datos de conexión al dron, y volar la misión desde la
+- **4.3 ✅ El vuelo en vivo.** Los datos de conexión al dron, y volar la misión desde la
   pantalla viendo la posición moverse sobre el mapa, con la batería y el progreso.
   *Entregable: una misión completa volada desde el navegador.*
 
-- **4.4 — Comparar fechas y cierre.** La vista que compara dos pasadas del satélite con
-  escala fija y marca qué zonas se repiten entre fechas. Más tests, documentación y README
-  final.
-  *Entregable: el proyecto terminado.*
+- **4.4 ✅ Comparar fechas y cierre.** El cruce de persistencia: marca lo que sale flojo (o
+  vigoroso) en las dos fechas, contra la vara de lo que daría el azar. Ordena cada fecha
+  contra sí misma, así que no depende del nivel del cultivo ni de la escala de colores.
+  Más `docs/aplicacion.md`, la sección de comparación en `docs/ndvi.md` y el README final.
+  *Entregable cumplido: el proyecto terminado, con 93 tests.*
 
 ### Fuera de alcance
 
@@ -257,8 +262,16 @@ Nada de esto está perdido: queda escrito acá por si algún día hay hardware y
 - ⬜ La aplicación acepta la cadena de conexión de un dron físico sin cambiar código.
 - ⬜ Un tercero puede clonar el repo, seguir el README y llegar a un mapa de NDVI.
 
-## 8. Próximos pasos
+## 8. Estado final
 
-Arrancar el **4.1**: exponer por HTTP lo que ya existe —planificar un recorrido, buscar fechas
-de satélite, analizar un lote— sin pantalla todavía, y verificar los endpoints desde el
-navegador.
+**El proyecto está terminado.** Los cuatro sprints del plan están cerrados y lo que quedó
+afuera está en *Fuera de alcance*, arriba, con el motivo de cada descarte.
+
+Lo que se podría retomar algún día, en orden de valor:
+
+1. **Más fechas de satélite.** Dos pasadas no son una tendencia. El mismo cruce sobre cinco
+   o seis fechas del ciclo diría bastante más, y no requiere escribir casi nada nuevo.
+2. **El Sprint 3, el día que haya un dron con cámara.** La captura geoetiquetada quedó
+   empezada en el 3.1 y el entorno destrabado.
+3. **Los dos errores de borde** listados abajo, si alguna vez se trabaja con lotes mucho
+   más chicos que estas 5 ha.
