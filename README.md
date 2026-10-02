@@ -4,6 +4,7 @@ Dibujás un lote sobre la foto satelital, el software calcula el recorrido que l
 volar el dron solo, y te dice **en hectáreas** dónde el cultivo anda flojo y dónde bien.
 
 ![Mapa de NDVI sobre el lote](docs/img/pantalla.png)
+*El plan en amarillo, el recorrido real en azul. Acá se abortó en el waypoint 7 de 22.*
 
 ---
 
@@ -15,7 +16,6 @@ y aborta si no alcanza. Se sigue en vivo sobre el mapa y se puede cortar en cual
 momento, con retorno automático al punto de despegue.
 
 ![Vuelo en curso](docs/img/pantalla1.png)
-*El plan en amarillo, el recorrido real en azul. Acá se abortó en el waypoint 7 de 22.*
 
 **Mide el cultivo con imágenes de Sentinel-2.** Baja únicamente el recorte del campo —33 × 33
 píxeles de una escena de 120 millones—, calcula el NDVI descartando nubes y sombras, lo
